@@ -5,6 +5,10 @@
         <link href="./output.css" rel="stylesheet">
     </head>
     <body>
-        <h1 class="text-sm">てすと</h1>
+        <div class="max-w-4xl mx-auto h-screen wrap-break-word">
+            <section>
+                <p>testtesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttest</p>
+            </section>
+        </div>
     </body>
 </html>
