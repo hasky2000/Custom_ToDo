@@ -10,4 +10,9 @@
 `npm run watch`  
 フロントエンドの起動  
 `php -S localhost:8000 -t public`  
+php -S localhost:8000 -t public && npm run watch  
 PHPの起動
+
+### 環境構築
+#### tailwindの構築
+
