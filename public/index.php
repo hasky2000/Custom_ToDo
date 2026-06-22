@@ -5,6 +5,6 @@
         <link href="./output.css" rel="stylesheet">
     </head>
     <body>
-        <h1 class="text-sm">てすと</h1>
+        
     </body>
 </html>
