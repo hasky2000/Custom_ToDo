@@ -26,3 +26,6 @@ PHPの起動
 タスク完了
 タスク進捗度
 タスクの作成日時
+## DBについて
+user: `todo-user`
+password: `password`
