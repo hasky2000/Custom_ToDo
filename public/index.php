@@ -5,6 +5,12 @@
         <link href="./output.css" rel="stylesheet">
     </head>
     <body>
+        <a href="login.php">login</a>
+        <?php
+            session_start();
+            echo "<p>[DEBUG] username: ".$_SESSION["user"]["username"]."</p>";
+        ?>
+
         <section>
             <form>
                 <lavel for="title">タスク</lavel>
@@ -41,9 +47,10 @@
             </form>
         </section>
         <section>
-            <p id="view_title"></p>
-            <p id="view_content"></p>
-            <p id="view_priority"></p>
+            <button type="button" id="get">get</button>
+        </section>
+        <section>
+            <div id="todo"></div>
         </section>
     </body>
 </html>
