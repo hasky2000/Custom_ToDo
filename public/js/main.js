@@ -14,21 +14,13 @@ function render_tasks() {
                 <p>content: ${todo.content} ID: ${todo.id}</p>
                 <p>priority: ${todo.priority}</p>
                 <button class="del-but" data-id="${id}">DEL</button>
+                <button class-"cng-but" data-id="${id}">CNG</button>
             `;
             todo_container.appendChild(card);
-            const button = card.querySelector(".del-but")
-            button.addEventListener("click", (event) => {
-                const id = event.target.dataset.id;
-                fetch("php/del_task.php", {
-                    method: "post",
-                    body: new URLSearchParams({
-                        id: id
-                    })
-                })
-                .then(() => {
-                    render_tasks();
-                })
+            const del_button = card.querySelector(".del-but");
+            del_button.addEventListener("click", (event) => {
             })
+            // const cng_button = card.
         });
     });
 
@@ -59,3 +51,26 @@ document.getElementById("get")
     .addEventListener("click", () => {
         render_tasks();
     })
+
+const todo_container = document.getElementById("todo");
+todo_container.addEventListener("click", (event) => {
+    // console.log(event.target);
+    const target = event.target;
+    if (target.classList.contains("del-but")) {
+        // console.log("DEL");
+        const id = event.target.dataset.id;
+        fetch("php/del_task.php", {
+            method: "post",
+            body: new URLSearchParams({
+                id: id
+            })
+        })
+        .then(() => {
+            render_tasks();
+        })
+    }
+    if (target.classList.contains("cng-but")) {
+        const id = event.target.dataset.id;
+        fetch("")
+    }
+})

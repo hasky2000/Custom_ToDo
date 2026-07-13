@@ -1,11 +1,13 @@
+<?php
+    session_start();
+    if (!isset($_SESSION["user"]))
+    echo "<p>[DEBUG] username: ".$_SESSION["user"]["username"]."</p>";
+?>
+
 <html>
         <?php $page_title = "HOME"; require("components/head.php"); ?>
     <body>
         <a href="login.php">login</a>
-        <?php
-            session_start();
-            echo "<p>[DEBUG] username: ".$_SESSION["user"]["username"]."</p>";
-        ?>
 
         <section>
             <form>
