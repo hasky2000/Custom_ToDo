@@ -1,0 +1,171 @@
+/*
+ * サイト共通のカラーパレット。
+ * 配色を変更するときは、以下の4色を編集して npm run build を実行する。
+ */
+:root {
+    --color-main: #90A9FD;   /* ヘッダー・主要ボタン・進捗 */
+    --color-accent: #EEF0FF; /* 淡い背景・補助ボタン・選択状態 */
+    --color-base: #FFFFFF;  /* ページ・カード・入力欄 */
+    --color-text: #5059A6;  /* 本文・見出し・アイコン */
+
+    /* 各コンポーネントの初期色。ユーザー設定がある項目だけJSで上書きする。 */
+    --theme-page: var(--color-accent);
+    --theme-surface: var(--color-base);
+    --theme-header: var(--color-main);
+    --theme-card: var(--color-base);
+    --theme-input: var(--color-base);
+    --theme-primary: var(--color-main);
+    --theme-primary_text: var(--color-text);
+    --theme-secondary: var(--color-accent);
+    --theme-secondary_text: var(--color-text);
+    --theme-text: var(--color-text);
+    --theme-border: var(--color-accent);
+    --theme-progress: var(--color-main);
+    --theme-navigation: var(--color-base);
+    --theme-navigation_active: var(--color-accent);
+
+    /* 表示設定の初期値。0pxを選ぶと枠を表示しない。 */
+    --appearance-input-border-width: 1px;
+    --appearance-card-border-width: 1px;
+    --appearance-button-border-width: 1px;
+    --appearance-font-family: 'DM Sans', 'Noto Sans JP', sans-serif;
+
+    /* 影とモーダルの背景は、文字色の透明度を変えて作る。 */
+    --color-shadow: color-mix(in srgb, var(--theme-text) 12%, transparent);
+    --color-backdrop: color-mix(in srgb, var(--theme-text) 45%, transparent);
+}
+
+/* Tailwindの枠指定より優先し、各部品の設定を共通で適用する。 */
+.initializing #auth-view {
+    visibility: hidden;
+}
+
+.theme-app :is(input, textarea, select).border-line {
+    border-width: var(--appearance-input-border-width);
+}
+
+.theme-app .border.border-line:not(input):not(textarea):not(select):not(button) {
+    border-width: var(--appearance-card-border-width);
+}
+
+.theme-app :is(dialog, #login-form, #register-form) {
+    border: var(--appearance-card-border-width) solid var(--theme-border);
+}
+
+.theme-app button:not(.task-drag-handle),
+.theme-app .appearance-preview-button {
+    border: var(--appearance-button-border-width) solid var(--theme-border);
+}
+
+.theme-app .main-navigation button {
+    border: 0;
+}
+
+[data-blur-enabled='true'] .theme-app :is(header, .main-navigation),
+[data-blur-enabled='true'] dialog::backdrop {
+    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
+}
+
+[data-blur-enabled='true'] .theme-app header {
+    background-color: color-mix(in srgb, var(--theme-header) 85%, transparent);
+}
+
+[data-blur-enabled='true'] .main-navigation {
+    background-color: color-mix(in srgb, var(--theme-navigation) 85%, transparent);
+}
+
+[data-shadow-enabled='false'] .theme-app :is(.shadow-sm, .shadow-xl, .shadow-2xl, .task-add-button, .main-navigation, .task-drag-preview) {
+    box-shadow: none;
+}
+
+[data-shadow-enabled='false'] .progress-range::-webkit-slider-thumb {
+    box-shadow: none;
+}
+
+[data-shadow-enabled='false'] .progress-range::-moz-range-thumb {
+    box-shadow: none;
+}
+
+input::placeholder,
+textarea::placeholder {
+    color: var(--theme-text);
+    opacity: 0.7;
+}
+
+button:focus-visible,
+a:focus-visible,
+summary:focus-visible {
+    outline: 2px solid var(--theme-text);
+    outline-offset: 3px;
+}
+
+summary::-webkit-details-marker {
+    display: none;
+}
+
+dialog::backdrop {
+    background: var(--color-backdrop);
+}
+
+.task-drag-handle {
+    touch-action: none;
+    cursor: grab;
+    background: transparent;
+}
+
+.task-drag-handle:active {
+    cursor: grabbing;
+}
+
+.task-drag-placeholder {
+    opacity: 0.35;
+}
+
+.task-drag-preview {
+    position: fixed;
+    z-index: 50;
+    margin: 0;
+    list-style: none;
+    pointer-events: none;
+    box-shadow: 0 12px 30px var(--color-shadow);
+    border-radius: 1rem;
+}
+
+.task-add-button {
+    box-shadow: 0 12px 30px var(--color-shadow);
+}
+
+.main-navigation {
+    box-shadow: 0 -6px 24px var(--color-shadow);
+}
+
+.progress-range {
+    appearance: none;
+    height: 0.55rem;
+    border-radius: 9999px;
+    background: linear-gradient(
+        to right,
+        var(--theme-progress) 0 var(--progress),
+        var(--theme-input) var(--progress) 100%
+    );
+}
+
+.progress-range::-webkit-slider-thumb {
+    appearance: none;
+    width: 1.35rem;
+    height: 1.35rem;
+    border: 3px solid var(--theme-input);
+    border-radius: 9999px;
+    background: var(--theme-progress);
+    box-shadow: 0 2px 8px var(--color-shadow);
+}
+
+.progress-range::-moz-range-thumb {
+    width: 1.1rem;
+    height: 1.1rem;
+    border: 3px solid var(--theme-input);
+    border-radius: 9999px;
+    background: var(--theme-progress);
+    box-shadow: 0 2px 8px var(--color-shadow);
+}

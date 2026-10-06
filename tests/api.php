@@ -72,6 +72,9 @@ try {
     requestApi('reorder_task', 'PATCH', ['task_ids' => [1]], $cookie, 401);
     requestApi('debug', 'GET', null, $cookie, 401);
     requestApi('debug', 'POST', null, $cookie, 405);
+    requestApi('colors', 'GET', null, $cookie, 401);
+    requestApi('colors', 'PUT', ['colors' => (object) []], $cookie, 401);
+    requestApi('colors', 'POST', null, $cookie, 405);
     $registration = ['email' => 'first@example.invalid', 'password' => 'test-password'];
     requestApi('register', 'POST', $registration, $cookie, 422);
     requestApi('register', 'POST', $registration + ['password_confirmation' => 'different'], $cookie, 422);
@@ -87,6 +90,23 @@ try {
     verify($debug['task_summary']['total'] === 0 && $debug['tasks'] === [], 'タスクが0件でもデバッグ情報を取得');
     verify($debug['runtime']['has_sort_order_column'] && $debug['runtime']['has_completed_at_column'], 'DBの保存カラムを確認');
     $firstHash = $debug['account']['password_hash'];
+    verify(requestApi('colors', 'GET', null, $cookie, 200)['data']['colors'] === [], '未設定では共通の配色を使う');
+    $customColors = ['primary' => '#aabbcc', 'page' => '#112233', 'text' => '#5059A6'];
+    $normalizedColors = array_map('strtoupper', $customColors);
+    verify(requestApi('colors', 'PUT', ['colors' => $customColors], $cookie, 200)['data']['colors'] === $normalizedColors, 'コンポーネント別の配色を保存しHEXを統一');
+    foreach ([
+        [],
+        ['colors' => null],
+        ['colors' => []],
+        ['colors' => ['primary' => '#fff']],
+        ['colors' => ['primary' => '#123456;display:none']],
+        ['colors' => ['primary' => 'url(https://example.invalid)']],
+        ['colors' => ['primary' => 123456]],
+        ['colors' => ['unknown' => '#123456']],
+    ] as $invalidColors) {
+        requestApi('colors', 'PUT', $invalidColors, $cookie, 422);
+    }
+    verify(requestApi('colors', 'GET', null, $cookie, 200)['data']['colors'] == $normalizedColors, '不正な配色では保存値を変更しない');
 
     $loginCookie = '';
     foreach ([
@@ -102,6 +122,7 @@ try {
     requestApi('me', 'GET', null, $loginCookie, 401);
     requestApi('debug', 'GET', null, $loginCookie, 401);
     requestApi('login', 'POST', $registration, $loginCookie, 200);
+    verify(requestApi('colors', 'GET', null, $loginCookie, 200)['data']['colors'] == $normalizedColors, '別セッションでも配色を保持');
     $loginDebug = requestApi('debug', 'GET', null, $loginCookie, 200)['data'];
     verify($loginDebug['session']['password_verified'] === true
         && $loginDebug['session']['authentication_method'] === 'password'
@@ -151,6 +172,11 @@ try {
     requestApi('register', 'POST', [
         'email' => 'second@example.invalid', 'password' => 'test-password', 'password_confirmation' => 'test-password',
     ], $otherCookie, 201);
+    verify(requestApi('colors', 'GET', ['user_id' => $registeredUser['id']], $otherCookie, 200)['data']['colors'] === [], '他人の配色を取得しない');
+    requestApi('colors', 'PUT', ['user_id' => $registeredUser['id'], 'colors' => ['primary' => '#123456']], $otherCookie, 200);
+    verify(requestApi('colors', 'GET', null, $cookie, 200)['data']['colors'] == $normalizedColors, '他人の配色を更新しない');
+    verify(requestApi('colors', 'PUT', ['colors' => (object) []], $otherCookie, 200)['data']['colors'] === [], '初期配色へのリセットを保存');
+    verify(requestApi('colors', 'GET', null, $otherCookie, 200)['data']['colors'] === [], 'リセット後の再取得でも初期配色を使う');
     requestApi('restore_task', 'PATCH', ['id' => $b], $otherCookie, 404);
     requestApi('reorder_task', 'PATCH', ['task_ids' => [$c, $a]], $otherCookie, 409);
     verify(requestApi('get_completed_tasks', 'GET', null, $otherCookie, 200)['data'] === [], '他のユーザーのアーカイブを表示しない');

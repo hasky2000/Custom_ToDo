@@ -2,6 +2,35 @@
 
 学生の授業内で作成するTODOアプリです。PHP・PostgreSQL・Docker Composeを使用します。
 
+## カラーパレット
+
+初期配色は次の4色を共通で使用します。影・モーダルの背景は文字色の透明度を変えて作ります。
+
+| 用途 | 色 | CSS変数 | 主な使用箇所 |
+| --- | --- | --- | --- |
+| メインカラー | `#90A9FD` | `--color-main` | ヘッダー、主要ボタン、進捗 |
+| アクセントカラー | `#EEF0FF` | `--color-accent` | 淡い背景、補助ボタン、選択状態 |
+| ベースカラー | `#FFFFFF` | `--color-base` | ページ、カード、入力欄 |
+| 文字など | `#5059A6` | `--color-text` | 本文、見出し、アイコン |
+
+テンプレートは `src/css/input.css` の `:root` です。初期配色を変更するときは4つの変数を編集して `npm run build` を実行すると、配信用の `src/public/assets/app.css` に反映されます。各コンポーネントの初期色は `--theme-*` からこの4色を参照します。
+
+マイページの「設定を開く」から、次のカテゴリを選択できます。
+
+- 配色：背景・カード・入力欄・ボタンの背景と文字・ヘッダー・フッター・本文・罫線・進捗の14色
+- 枠・効果：枠の太さ、背景ブラー、影
+- フォント：サイト全体の書体
+- カラーの共有：配色文字列のエクスポート・コピー・インポート
+- アカウント：メールアドレスの確認、ログアウト
+
+色選択と6桁のHEXコード入力に対応し、有効な変更はすぐに反映され、アカウントごとにDBへ自動保存されます。連続編集は最新の設定を順番に保存します。保存待ちの内容はユーザーID別にブラウザにも記録し、直後にリロードした場合は復元してDBへ保存し直します。保存済みの設定は再ログイン・別端末でも使用できます。「今すぐ保存」で保存の実行・再試行ができ、「変更を取り消す」でこの読み込み後に編集する前の設定へ、「初期設定に戻す」で共通テンプレートへ戻して保存します。
+
+「カラーの共有」の「文字列をコピー」で14色すべてを含むJSON文字列をコピーできます。別のユーザーはその文字列をインポート欄へ貼り付け、「配色をインポート」で適用・保存できます。共有文字列には枠・効果・フォント・アカウント情報を含めません。不正な形式・不足した色・未対応の項目・6桁以外のHEXコードは取り込まず、現在の配色を保持します。共有形式の定義は `src/public/assets/palette-format.js` です。
+
+入力欄・カード・ボタンの枠はそれぞれ0〜6pxで指定でき、0pxでは枠を表示しません。背景のブラーはヘッダー・フッター・ダイアログの背面に適用し、影の表示も個別に切り替えられます。フォントは標準・ゴシック・明朝・丸ゴシック・端末標準から選べます。初期値は枠1px・背景ブラー無効・影有効・標準フォントです。フォントはサイト全体に適用し、カラーコードなどのコード表示は等幅フォントを維持します。
+
+設定画面の項目は `src/public/assets/colors.js`、保存APIは `src/public/api/colors.php` です。APIはログイン中のユーザーの配色だけを扱い、設定可能な項目と6桁のHEXコードを検証します。
+
 ## 今回追加した機能
 
 - 新規登録ではパスワードを2回入力します。不一致の場合は画面とAPIの両方で登録を拒否します。
@@ -28,6 +57,8 @@ DB接続用の変数名を分離し、入力パスワードを保存・照合す
 
 ```sh
 docker compose exec -T db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1 --single-transaction' < database/init/005_add_task_order_and_completed_at.sql
+docker compose exec -T db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1 --single-transaction' < database/init/006_add_user_colors.sql
+docker compose exec -T db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1 --single-transaction' < database/init/007_add_user_appearance.sql
 ```
 
 ## 動作検証
@@ -38,4 +69,16 @@ docker compose exec -T db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v O
 
 ```sh
 bash tests/run.sh
+```
+
+今回追加した枠・ブラー・影・フォントの保存・入力検証・ユーザー分離だけを確認する場合は、次を実行します。既存の認証・タスクの全件テストは実行しません。
+
+```sh
+bash tests/run.sh appearance
+```
+
+カラー共有と自動保存の差分だけを検証する場合は、次を実行します。Dockerや検証用DBは不要です。
+
+```sh
+npm run test:settings-sharing
 ```

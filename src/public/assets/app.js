@@ -34,6 +34,8 @@ const registerPasswordConfirmation = document.querySelector('#register-password-
 const debugPage = document.querySelector('#debug-page');
 const debugContent = document.querySelector('#debug-content');
 const refreshDebugButton = document.querySelector('#refresh-debug');
+const settingsPage = document.querySelector('#settings-page');
+const settingsDetailPage = document.querySelector('#settings-detail-page');
 let completedTasks = [];
 let isReordering = false;
 let dragState = null;
@@ -52,9 +54,17 @@ function showAuthView() {
 async function showApp(user) {
     currentUserEmail.textContent = user.email;
     settingsEmail.textContent = user.email;
+    let settingsError = null;
+    try {
+        await loadUserColors(user.id);
+    } catch (error) {
+        settingsError = error;
+        colorsMessage.textContent = `${error.message} ページを再読み込みしてください。`;
+    }
     authView.classList.add('hidden');
     appShell.classList.remove('hidden');
     await activateCurrentPage();
+    if (settingsError) showMessage(settingsError.message, true);
 }
 
 function showPage(page) {
@@ -65,14 +75,16 @@ function showPage(page) {
     myPage.classList.toggle('hidden', page !== 'my');
     archivePage.classList.toggle('hidden', page !== 'archive');
     debugPage.classList.toggle('hidden', page !== 'debug');
+    settingsPage.classList.toggle('hidden', page !== 'settings');
+    settingsDetailPage.classList.toggle('hidden', page !== 'settings-detail');
     openTaskFormButton.classList.toggle('hidden', !isTodoPage);
-    pageTitle.textContent = { todo: '今日のタスク', my: 'マイページ', archive: 'アーカイブ', debug: 'デバッグ' }[page];
+    pageTitle.textContent = { todo: '今日のタスク', my: 'マイページ', archive: 'アーカイブ', debug: 'デバッグ', settings: '設定', 'settings-detail': '設定' }[page];
     const navigationButtons = { todo: showTodoPageButton, my: showMyPageButton };
     const selectedNavigation = page === 'todo' ? 'todo' : 'my';
     for (const [name, button] of Object.entries(navigationButtons)) {
         button.className = name === selectedNavigation
-            ? 'flex items-center justify-center gap-2 rounded-xl bg-orange-50 px-3 py-3 text-sm font-semibold text-accent'
-            : 'flex items-center justify-center gap-2 rounded-xl px-3 py-3 text-sm font-medium text-muted';
+            ? 'flex items-center justify-center gap-2 rounded-xl bg-selected px-3 py-3 text-sm font-semibold text-ink'
+            : 'flex items-center justify-center gap-2 rounded-xl px-3 py-3 text-sm font-medium text-ink';
         if (name === selectedNavigation) {
             button.setAttribute('aria-current', 'page');
         } else {
@@ -88,17 +100,17 @@ function selectAuthForm(type) {
     loginForm.classList.toggle('hidden', !isLogin);
     registerForm.classList.toggle('hidden', isLogin);
     showLoginButton.className = isLogin
-        ? 'rounded-lg bg-white px-3 py-2 text-sm font-semibold shadow-sm'
-        : 'rounded-lg px-3 py-2 text-sm font-semibold text-muted';
+        ? 'rounded-lg bg-card px-3 py-2 text-sm font-semibold shadow-sm'
+        : 'rounded-lg px-3 py-2 text-sm font-semibold text-ink';
     showRegisterButton.className = isLogin
-        ? 'rounded-lg px-3 py-2 text-sm font-semibold text-muted'
-        : 'rounded-lg bg-white px-3 py-2 text-sm font-semibold shadow-sm';
+        ? 'rounded-lg px-3 py-2 text-sm font-semibold text-ink'
+        : 'rounded-lg bg-card px-3 py-2 text-sm font-semibold shadow-sm';
     showAuthMessage('');
 }
 
 function showMessage(text, isError = false) {
     message.textContent = text;
-    message.className = `mb-4 min-h-6 text-sm ${isError ? 'text-red-700' : 'text-green-700'}`;
+    message.className = `mb-4 min-h-6 text-sm text-ink ${isError ? 'font-semibold' : ''}`;
 }
 
 async function requestJson(url, options = {}) {
@@ -157,7 +169,7 @@ function createTaskElement(task, total) {
     const item = document.createElement('li');
     item.dataset.taskId = task.id;
     const details = document.createElement('details');
-    details.className = 'group overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-sm';
+    details.className = 'group overflow-hidden rounded-2xl border border-line bg-card shadow-sm';
 
     const summary = document.createElement('summary');
     summary.className = 'flex cursor-pointer list-none items-center gap-3 px-4 py-5';
@@ -165,7 +177,7 @@ function createTaskElement(task, total) {
     const completeCheckbox = document.createElement('input');
     completeCheckbox.type = 'checkbox';
     completeCheckbox.setAttribute('aria-label', `${task.title}を完了する`);
-    completeCheckbox.className = 'size-6 shrink-0 cursor-pointer rounded border-stone-300 accent-orange-600';
+    completeCheckbox.className = 'size-6 shrink-0 cursor-pointer rounded border-line accent-progress';
     completeCheckbox.addEventListener('click', (event) => {
         event.stopPropagation();
     });
@@ -176,13 +188,13 @@ function createTaskElement(task, total) {
     title.textContent = task.title;
 
     const chevron = document.createElement('span');
-    chevron.className = 'grid size-9 shrink-0 place-items-center rounded-full bg-stone-100 text-muted transition-all group-open:rotate-180 group-open:bg-orange-50 group-open:text-accent';
+    chevron.className = 'grid size-9 shrink-0 place-items-center rounded-full bg-accent text-secondary-ink transition-all group-open:rotate-180';
     chevron.setAttribute('aria-hidden', 'true');
     chevron.innerHTML = '<svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m6 9 6 6 6-6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
     const dragHandle = document.createElement('button');
     dragHandle.type = 'button';
-    dragHandle.className = 'task-drag-handle grid size-10 shrink-0 place-items-center rounded-lg bg-transparent text-muted disabled:cursor-not-allowed disabled:opacity-30';
+    dragHandle.className = 'task-drag-handle grid size-10 shrink-0 place-items-center rounded-lg bg-transparent text-ink disabled:cursor-not-allowed disabled:opacity-30';
     dragHandle.setAttribute('aria-label', `${task.title}の並べ替えハンドル`);
     dragHandle.setAttribute('aria-describedby', 'task-order-help');
     dragHandle.dataset.dragHandle = task.id;
@@ -198,18 +210,18 @@ function createTaskElement(task, total) {
     summary.append(completeCheckbox, title, dragHandle, chevron);
 
     const detailArea = document.createElement('div');
-    detailArea.className = 'border-t border-stone-100 px-5 pb-5 pt-4';
+    detailArea.className = 'border-t border-line px-5 pb-5 pt-4';
 
     if (task.content) {
         const content = document.createElement('p');
-        content.className = 'whitespace-pre-wrap text-sm leading-6 text-muted';
+        content.className = 'whitespace-pre-wrap text-sm leading-6 text-ink';
         content.textContent = task.content;
         detailArea.append(content);
     }
 
     if (task.scheduled_at) {
         const scheduledAt = document.createElement('p');
-        scheduledAt.className = 'mt-3 text-sm font-semibold text-accent';
+        scheduledAt.className = 'mt-3 text-sm font-semibold text-ink';
         const date = parseDatabaseDate(task.scheduled_at);
         scheduledAt.textContent = `予定: ${date.toLocaleString('ja-JP', {
             dateStyle: 'medium',
@@ -219,7 +231,7 @@ function createTaskElement(task, total) {
     }
 
     const progressArea = document.createElement('div');
-    progressArea.className = 'mt-5 rounded-xl bg-stone-50 p-4';
+    progressArea.className = 'mt-5 rounded-xl bg-accent p-4';
 
     const progressHeader = document.createElement('div');
     progressHeader.className = 'mb-3 flex items-center justify-between';
@@ -230,7 +242,7 @@ function createTaskElement(task, total) {
     progressLabel.htmlFor = `progress-${task.id}`;
 
     const progressValue = document.createElement('output');
-    progressValue.className = 'text-sm font-bold text-accent';
+    progressValue.className = 'text-sm font-bold text-ink';
     progressValue.htmlFor = `progress-${task.id}`;
     progressValue.textContent = `${task.progress ?? 0}%`;
 
@@ -250,7 +262,7 @@ function createTaskElement(task, total) {
 
     const updateButton = document.createElement('button');
     updateButton.type = 'button';
-    updateButton.className = 'mt-4 w-full rounded-lg bg-ink px-3 py-2 text-sm font-semibold text-white';
+    updateButton.className = 'mt-4 w-full rounded-lg bg-main px-3 py-2 text-sm font-semibold text-primary-ink';
     updateButton.textContent = '進捗を保存';
     updateButton.addEventListener('click', () => {
         updateTask(task.id, Number(progressInput.value));
@@ -264,13 +276,13 @@ function createTaskElement(task, total) {
 
     const editButton = document.createElement('button');
     editButton.type = 'button';
-    editButton.className = 'rounded-lg bg-stone-100 px-4 py-2 text-sm font-semibold text-ink hover:bg-stone-200';
+    editButton.className = 'rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-secondary-ink';
     editButton.textContent = '編集';
     editButton.addEventListener('click', () => openEditDialog(task));
 
     const deleteButton = document.createElement('button');
     deleteButton.type = 'button';
-    deleteButton.className = 'rounded-lg px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-50';
+    deleteButton.className = 'rounded-lg px-3 py-2 text-sm font-medium text-ink hover:bg-accent';
     deleteButton.textContent = '削除';
     deleteButton.addEventListener('click', () => deleteTask(task.id));
 
@@ -291,7 +303,7 @@ async function getTasks() {
 
     if (result.data.length === 0) {
         const emptyItem = document.createElement('li');
-        emptyItem.className = 'rounded-2xl border border-dashed border-stone-300 bg-white/50 p-8 text-center text-muted';
+        emptyItem.className = 'rounded-2xl border border-dashed border-line bg-card p-8 text-center text-ink';
         emptyItem.textContent = 'TODOはまだありません。';
         taskList.append(emptyItem);
         return;
@@ -486,31 +498,31 @@ function cancelTaskDragWithEscape(event) {
 
 function createCompletedTaskElement(task) {
     const item = document.createElement('li');
-    item.className = 'rounded-2xl border border-stone-200 bg-white p-5 shadow-sm';
+    item.className = 'rounded-2xl border border-line bg-card p-5 shadow-sm';
 
     const heading = document.createElement('div');
     heading.className = 'flex items-start gap-3';
 
     const checkIcon = document.createElement('span');
-    checkIcon.className = 'grid size-7 shrink-0 place-items-center rounded-full bg-green-100 text-green-700';
+    checkIcon.className = 'grid size-7 shrink-0 place-items-center rounded-full bg-main text-primary-ink';
     checkIcon.innerHTML = '<svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="m5 12 4 4L19 6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
     const textArea = document.createElement('div');
     textArea.className = 'min-w-0';
     const title = document.createElement('h3');
-    title.className = 'font-semibold text-stone-500 line-through';
+    title.className = 'font-semibold text-ink line-through';
     title.textContent = task.title;
     textArea.append(title);
 
     if (task.content) {
         const content = document.createElement('p');
-        content.className = 'mt-1 text-sm text-muted';
+        content.className = 'mt-1 text-sm text-ink';
         content.textContent = task.content;
         textArea.append(content);
     }
 
     const completedAt = document.createElement('p');
-    completedAt.className = 'mt-3 text-xs font-medium text-muted';
+    completedAt.className = 'mt-3 text-xs font-medium text-ink';
     completedAt.textContent = `完了: ${parseDatabaseDate(task.completed_at ?? task.updated_at).toLocaleString('ja-JP', {
         dateStyle: 'medium',
         timeStyle: 'short',
@@ -519,7 +531,7 @@ function createCompletedTaskElement(task) {
     heading.append(checkIcon, textArea);
     const restoreButton = document.createElement('button');
     restoreButton.type = 'button';
-    restoreButton.className = 'mt-4 rounded-lg bg-orange-50 px-4 py-2 text-sm font-semibold text-accent disabled:opacity-50';
+    restoreButton.className = 'mt-4 rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-secondary-ink disabled:opacity-50';
     restoreButton.textContent = 'TODOに戻す';
     restoreButton.setAttribute('aria-label', `${task.title}をTODOに戻す`);
     restoreButton.addEventListener('click', () => restoreTask(task.id, restoreButton));
@@ -549,7 +561,7 @@ function renderCompletedTasks() {
 
     if (filteredTasks.length === 0) {
         const emptyItem = document.createElement('p');
-        emptyItem.className = 'rounded-2xl border border-dashed border-stone-300 bg-white/50 p-8 text-center text-muted';
+        emptyItem.className = 'rounded-2xl border border-dashed border-line bg-card p-8 text-center text-ink';
         emptyItem.textContent = completedTasks.length === 0
             ? '完了したTODOはまだありません。'
             : '検索条件に一致するTODOはありません。';
@@ -569,7 +581,7 @@ function renderCompletedTasks() {
     for (const date of [...groups.keys()].sort().reverse()) {
         const section = document.createElement('section');
         const heading = document.createElement('h3');
-        heading.className = 'mb-3 text-sm font-bold text-muted';
+        heading.className = 'mb-3 text-sm font-bold text-ink';
         const dateLabel = date ? new Date(`${date}T00:00:00`).toLocaleDateString('ja-JP', { dateStyle: 'long' }) : '日付不明';
         heading.textContent = `${dateLabel}（${groups.get(date).length}件）`;
         const list = document.createElement('ul');
@@ -754,8 +766,14 @@ async function activateCurrentPage() {
     if (dragState) {
         cancelTaskDrag({});
     }
-    const page = window.location.hash.slice(1);
-    showPage(['todo', 'my', 'archive', 'debug'].includes(page) ? page : 'todo');
+    const route = window.location.hash.slice(1);
+    const category = route === 'colors' ? 'colors' : route.startsWith('settings/') ? route.slice(9) : null;
+    if (['colors', 'effects', 'fonts', 'sharing', 'account'].includes(category)) {
+        showPage('settings-detail');
+        showSettingsCategory(category);
+    } else {
+        showPage(['todo', 'my', 'archive', 'debug', 'settings'].includes(route) ? route : 'todo');
+    }
     if (currentPage === 'archive') {
         await openArchivePage();
     } else if (currentPage === 'debug') {
@@ -790,7 +808,7 @@ function formatDebugDate(value) {
 
 function appendDebugSection(title, rows) {
     const section = document.createElement('section');
-    section.className = 'rounded-2xl border border-stone-200 bg-white p-5 shadow-sm';
+    section.className = 'rounded-2xl border border-line bg-card p-5 shadow-sm';
     const heading = document.createElement('h2');
     heading.className = 'mb-4 text-lg font-bold';
     heading.textContent = title;
@@ -799,7 +817,7 @@ function appendDebugSection(title, rows) {
     for (const [label, value] of rows) {
         const row = document.createElement('div');
         const term = document.createElement('dt');
-        term.className = 'text-xs font-semibold text-muted';
+        term.className = 'text-xs font-semibold text-ink';
         term.textContent = label;
         const description = document.createElement('dd');
         description.className = 'mt-1 whitespace-pre-wrap break-all';
@@ -862,7 +880,7 @@ function renderDebugData(data) {
         ['User Agent', navigator.userAgent],
     ]);
     const details = document.createElement('details');
-    details.className = 'rounded-2xl border border-stone-200 bg-white p-5 shadow-sm';
+    details.className = 'rounded-2xl border border-line bg-card p-5 shadow-sm';
     const heading = document.createElement('summary');
     heading.className = 'cursor-pointer font-semibold';
     heading.textContent = 'タスクの保存データ（JSON）';
@@ -942,6 +960,7 @@ registerForm.addEventListener('submit', async (event) => {
 
 logoutButton.addEventListener('click', async () => {
     try {
+        await settingsSaveQueue?.flush();
         await requestJson('/api/logout.php', { method: 'POST' });
         pageRequestId++;
         taskList.replaceChildren();
@@ -953,6 +972,7 @@ logoutButton.addEventListener('click', async () => {
         loginForm.reset();
         registerForm.reset();
         registerPasswordConfirmation.setCustomValidity('');
+        resetUserColors();
         showAuthView();
         showPage('todo');
         window.history.replaceState(null, '', '#todo');
@@ -963,7 +983,7 @@ logoutButton.addEventListener('click', async () => {
 });
 
 async function initialize() {
-    const response = await fetch('/api/me.php');
+    const response = await fetch('/api/me.php', { cache: 'no-store' });
 
     if (response.status === 401) {
         showAuthView();
@@ -983,4 +1003,6 @@ async function initialize() {
 initialize().catch((error) => {
     showAuthView();
     showAuthMessage(error.message);
+}).finally(() => {
+    document.documentElement.classList.remove('initializing');
 });
