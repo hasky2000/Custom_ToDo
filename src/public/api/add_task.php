@@ -64,8 +64,12 @@ try {
 
     /** @var PDO $pdo */
     $pdo = require dirname(__DIR__, 2) . '/app/db.php';
-    $sql = 'INSERT INTO tasks (user_id, title, content, scheduled_at)
-            VALUES (:user_id, :title, :content, :scheduled_at)
+    require_once dirname(__DIR__, 2) . '/app/task_order.php';
+    $pdo->beginTransaction();
+    lockTaskOrder($pdo, $userId);
+
+    $sql = 'INSERT INTO tasks (user_id, title, content, scheduled_at, sort_order)
+            VALUES (:user_id, :title, :content, :scheduled_at, :sort_order)
             RETURNING id, title, content, completed, progress, scheduled_at, created_at, updated_at';
     $statement = $pdo->prepare($sql);
     $statement->execute([
@@ -73,12 +77,18 @@ try {
         ':title' => $title,
         ':content' => $content,
         ':scheduled_at' => $scheduledAt,
+        ':sort_order' => nextTaskOrder($pdo, $userId),
     ]);
 
-    respond(['data' => $statement->fetch()], 201);
+    $task = $statement->fetch();
+    $pdo->commit();
+    respond(['data' => $task], 201);
 } catch (JsonException) {
     respond(['error' => '正しい形式のJSONを送信してください。'], 400);
 } catch (Throwable $exception) {
+    if (isset($pdo) && $pdo->inTransaction()) {
+        $pdo->rollBack();
+    }
     error_log($exception->getMessage());
     respond(['error' => 'TODOを追加できませんでした。'], 500);
 }

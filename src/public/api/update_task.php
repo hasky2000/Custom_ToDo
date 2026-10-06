@@ -44,6 +44,7 @@ try {
         'UPDATE tasks
          SET progress = :progress,
              completed = CASE WHEN :completion_progress = 100 THEN TRUE ELSE completed END,
+             completed_at = CASE WHEN :archive_progress = 100 THEN CURRENT_TIMESTAMP ELSE completed_at END,
              updated_at = CURRENT_TIMESTAMP
          WHERE id = :id AND user_id = :user_id AND completed = FALSE
          RETURNING id, title, content, completed, progress, scheduled_at, created_at, updated_at'
@@ -53,6 +54,7 @@ try {
         ':user_id' => $userId,
         ':progress' => $progress,
         ':completion_progress' => $progress,
+        ':archive_progress' => $progress,
     ]);
     $updatedTask = $statement->fetch();
 

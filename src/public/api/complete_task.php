@@ -39,6 +39,7 @@ try {
         'UPDATE tasks
          SET completed = TRUE,
              progress = 100,
+             completed_at = CURRENT_TIMESTAMP,
              updated_at = CURRENT_TIMESTAMP
          WHERE id = :id AND user_id = :user_id AND completed = FALSE
          RETURNING id, title, content, completed, progress, scheduled_at, created_at, updated_at'

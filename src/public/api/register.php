@@ -24,6 +24,9 @@ try {
     $password = is_array($input) && is_string($input['password'] ?? null)
         ? $input['password']
         : '';
+    $passwordConfirmation = is_array($input) && is_string($input['password_confirmation'] ?? null)
+        ? $input['password_confirmation']
+        : null;
 
     if (filter_var($email, FILTER_VALIDATE_EMAIL) === false || strlen($email) > 254) {
         respond(['error' => '正しいメールアドレスを入力してください。'], 422);
@@ -31,6 +34,10 @@ try {
 
     if (strlen($password) < 8 || strlen($password) > 4096) {
         respond(['error' => 'パスワードは8文字以上で入力してください。'], 422);
+    }
+
+    if ($passwordConfirmation === null || $password !== $passwordConfirmation) {
+        respond(['error' => '確認用パスワードが一致しません。'], 422);
     }
 
     /** @var PDO $pdo */
@@ -56,8 +63,11 @@ try {
 
     require_once dirname(__DIR__, 2) . '/app/session.php';
     startAppSession();
-    session_regenerate_id();
+    session_regenerate_id(true);
     $_SESSION['user_id'] = (int) $user['id'];
+    $_SESSION['authentication_method'] = 'registration';
+    $_SESSION['authenticated_at'] = (new DateTimeImmutable())->format(DateTimeInterface::ATOM);
+    unset($_SESSION['password_verified_at']);
 
     respond(['data' => ['id' => (int) $user['id'], 'email' => $user['email']]], 201);
 } catch (JsonException) {

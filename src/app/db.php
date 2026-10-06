@@ -2,28 +2,29 @@
 
 declare(strict_types=1);
 
-$host = getenv('DB_HOST');
-$port = getenv('DB_PORT');
-$dbname = getenv('POSTGRES_DB');
-$user = getenv('POSTGRES_USER');
-$password = getenv('POSTGRES_PASSWORD');
+// require元の入力パスワードやユーザー情報を上書きしないよう、DB専用の変数名にする。
+$databaseHost = getenv('DB_HOST');
+$databasePort = getenv('DB_PORT');
+$databaseName = getenv('POSTGRES_DB');
+$databaseUser = getenv('POSTGRES_USER');
+$databasePassword = getenv('POSTGRES_PASSWORD');
 
 if (
-    $host === false ||
-    $port === false ||
-    $dbname === false ||
-    $user === false ||
-    $password === false
+    $databaseHost === false ||
+    $databasePort === false ||
+    $databaseName === false ||
+    $databaseUser === false ||
+    $databasePassword === false
 ) {
     throw new RuntimeException('データベース接続用の環境変数が不足しています。');
 }
 
-$dsn = "pgsql:host={$host};port={$port};dbname={$dbname}";
+$databaseDsn = "pgsql:host={$databaseHost};port={$databasePort};dbname={$databaseName}";
 
 return new PDO(
-    $dsn,
-    $user,
-    $password,
+    $databaseDsn,
+    $databaseUser,
+    $databasePassword,
     [
         PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
         PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,

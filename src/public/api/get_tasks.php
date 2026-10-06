@@ -30,7 +30,7 @@ try {
     $sql = 'SELECT id, title, content, completed, progress, scheduled_at, created_at, updated_at
             FROM tasks
             WHERE user_id = :user_id AND completed = FALSE
-            ORDER BY scheduled_at ASC NULLS LAST, created_at DESC, id DESC';
+            ORDER BY sort_order ASC, id ASC';
     $statement = $pdo->prepare($sql);
     $statement->execute([':user_id' => $userId]);
 

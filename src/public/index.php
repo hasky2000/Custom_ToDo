@@ -1,3 +1,8 @@
+<?php
+// 画面とJavaScriptの更新が別々にキャッシュされないようにする。
+header('Cache-Control: no-cache');
+$appScriptVersion = filemtime(__DIR__ . '/assets/app.js');
+?>
 <!doctype html>
 <html lang="ja">
 <head>
@@ -23,6 +28,18 @@
     <style>
         summary::-webkit-details-marker { display: none; }
         dialog::backdrop { background: rgb(29 29 27 / 45%); }
+        .task-drag-handle { touch-action: none; cursor: grab; background: transparent; }
+        .task-drag-handle:active { cursor: grabbing; }
+        .task-drag-placeholder { opacity: 0.35; }
+        .task-drag-preview {
+            position: fixed;
+            z-index: 50;
+            margin: 0;
+            list-style: none;
+            pointer-events: none;
+            box-shadow: 0 12px 30px rgb(29 29 27 / 20%);
+            border-radius: 1rem;
+        }
         .progress-range {
             appearance: none;
             height: 0.55rem;
@@ -47,7 +64,7 @@
             box-shadow: 0 2px 8px rgb(29 29 27 / 25%);
         }
     </style>
-    <script src="/assets/app.js" defer></script>
+    <script src="/assets/app.js?v=<?= $appScriptVersion ?>" defer></script>
 </head>
 <body class="min-h-screen bg-stone-200 font-sans text-ink">
     <section id="auth-view" class="mx-auto flex min-h-screen max-w-lg items-center bg-canvas px-6 py-12 shadow-xl">
@@ -87,6 +104,11 @@
                         class="mt-1 w-full rounded-lg border border-stone-300 px-3 py-3 focus:border-accent focus:outline-none focus:ring-2 focus:ring-orange-100">
                     <p class="mt-1 text-xs text-muted">8文字以上で入力してください。</p>
                 </div>
+                <div>
+                    <label for="register-password-confirmation" class="block text-sm font-semibold">パスワード（確認）</label>
+                    <input id="register-password-confirmation" name="password_confirmation" type="password" autocomplete="new-password" minlength="8" required
+                        class="mt-1 w-full rounded-lg border border-stone-300 px-3 py-3 focus:border-accent focus:outline-none focus:ring-2 focus:ring-orange-100">
+                </div>
                 <button type="submit" class="w-full rounded-lg bg-accent px-4 py-3 font-semibold text-white">アカウントを作成</button>
             </form>
 
@@ -113,18 +135,40 @@
                     <h2 id="task-list-heading" class="text-lg font-bold">TODOリスト</h2>
                     <span id="task-count" class="text-sm text-muted"></span>
                 </div>
+                <p id="task-order-help" class="mb-4 text-sm text-muted">右側のハンドルをドラッグして並べ替えできます。</p>
                 <ul id="task-list" class="space-y-4"></ul>
             </section>
 
-            <section id="my-page" class="hidden space-y-8" aria-labelledby="completed-list-heading">
-                <div>
+            <section id="archive-page" class="hidden space-y-6" aria-labelledby="completed-list-heading">
+                <a href="#my" class="inline-block rounded-lg bg-stone-100 px-4 py-2 text-sm font-semibold">← マイページに戻る</a>
+                <div class="space-y-4 rounded-2xl border border-stone-200 bg-white p-5 shadow-sm">
+                    <div>
+                        <label for="archive-search" class="block text-sm font-semibold">タスクを検索</label>
+                        <input id="archive-search" type="search" placeholder="タイトル・内容で検索"
+                            class="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2">
+                    </div>
+                    <div>
+                        <label for="archive-date" class="block text-sm font-semibold">完了日で絞り込む</label>
+                        <input id="archive-date" type="date" class="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2">
+                    </div>
+                    <button id="clear-archive-filters" type="button" class="rounded-lg bg-stone-100 px-4 py-2 text-sm font-semibold">検索条件をクリア</button>
+                </div>
+                <div aria-live="polite">
                     <div class="mb-4 flex items-end justify-between">
-                        <h2 id="completed-list-heading" class="text-lg font-bold">完了したタスク</h2>
+                        <h2 id="completed-list-heading" class="text-lg font-bold">アーカイブ</h2>
                         <span id="completed-task-count" class="text-sm text-muted"></span>
                     </div>
-                    <ul id="completed-task-list" class="space-y-3"></ul>
+                    <div id="completed-task-list" class="space-y-6"></div>
                 </div>
+            </section>
 
+            <section id="my-page" class="hidden space-y-8" aria-labelledby="settings-heading">
+                <a id="open-archive-page" href="#archive" class="block w-full rounded-2xl border border-stone-200 bg-white p-5 text-left font-semibold shadow-sm">
+                    アーカイブを見る →
+                </a>
+                <a href="#debug" class="block w-full rounded-2xl border border-stone-200 bg-white p-5 text-left font-semibold shadow-sm">
+                    デバッグページを見る →
+                </a>
                 <section aria-labelledby="settings-heading">
                     <h2 id="settings-heading" class="mb-4 text-lg font-bold">設定</h2>
                     <div class="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm">
@@ -136,6 +180,15 @@
                         </button>
                     </div>
                 </section>
+            </section>
+
+            <section id="debug-page" class="hidden space-y-6" aria-label="デバッグ情報">
+                <div class="flex flex-wrap items-center justify-between gap-3">
+                    <a href="#my" class="inline-block rounded-lg bg-stone-100 px-4 py-2 text-sm font-semibold">← マイページに戻る</a>
+                    <button id="refresh-debug" type="button" class="rounded-lg bg-ink px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">情報を更新</button>
+                </div>
+                <p class="text-sm leading-6 text-muted">ログイン中のアカウントのデータを表示します。パスワードは一方向ハッシュで保存されているため、保存済みハッシュを表示します。</p>
+                <div id="debug-content" class="space-y-6" aria-live="polite"></div>
             </section>
         </main>
 

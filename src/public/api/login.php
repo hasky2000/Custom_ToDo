@@ -25,7 +25,8 @@ try {
         ? $input['password']
         : '';
 
-    if ($email === '' || $password === '' || strlen($password) > 4096) {
+    if (filter_var($email, FILTER_VALIDATE_EMAIL) === false || strlen($email) > 254
+        || $password === '' || strlen($password) > 4096) {
         respond(['error' => 'メールアドレスまたはパスワードが正しくありません。'], 401);
     }
 
@@ -43,8 +44,12 @@ try {
 
     require_once dirname(__DIR__, 2) . '/app/session.php';
     startAppSession();
-    session_regenerate_id();
+    session_regenerate_id(true);
     $_SESSION['user_id'] = (int) $user['id'];
+    $_SESSION['authentication_method'] = 'password';
+    $_SESSION['authenticated_at'] = (new DateTimeImmutable())->format(DateTimeInterface::ATOM);
+    // password_verify が成功した場合だけ、照合成功の記録を残す。
+    $_SESSION['password_verified_at'] = $_SESSION['authenticated_at'];
 
     respond(['data' => ['id' => (int) $user['id'], 'email' => $user['email']]], 200);
 } catch (JsonException) {

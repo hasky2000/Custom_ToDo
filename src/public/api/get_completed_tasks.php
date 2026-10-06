@@ -28,10 +28,11 @@ try {
     /** @var PDO $pdo */
     $pdo = require dirname(__DIR__, 2) . '/app/db.php';
     $statement = $pdo->prepare(
-        'SELECT id, title, content, completed, progress, scheduled_at, created_at, updated_at
+        'SELECT id, title, content, completed, progress, scheduled_at, created_at, updated_at,
+                COALESCE(completed_at, updated_at) AS completed_at
          FROM tasks
          WHERE user_id = :user_id AND completed = TRUE
-         ORDER BY updated_at DESC, id DESC'
+         ORDER BY COALESCE(completed_at, updated_at) DESC, id DESC'
     );
     $statement->execute([':user_id' => $userId]);
 
