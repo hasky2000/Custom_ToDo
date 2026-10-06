@@ -1,0 +1,12 @@
+{
+  "name": "custom-todo",
+  "private": true,
+  "scripts": {
+    "dev": "tailwindcss -i ./src/css/input.css -o ./src/public/assets/app.css --watch",
+    "build": "tailwindcss -i ./src/css/input.css -o ./src/public/assets/app.css --minify"
+  },
+  "devDependencies": {
+    "@tailwindcss/cli": "4.1.13",
+    "tailwindcss": "4.1.13"
+  }
+}
