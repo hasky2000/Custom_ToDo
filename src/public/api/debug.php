@@ -61,7 +61,7 @@ try {
     $summary['average_progress'] = (float) $summary['average_progress'];
 
     $statement = $pdo->prepare(
-        'SELECT id, title, content, completed, progress, scheduled_at, sort_order,
+        'SELECT id, title, content, completed, progress, task_type, starts_at, scheduled_at, sort_order,
                 created_at, updated_at, completed_at
          FROM tasks WHERE user_id = :user_id ORDER BY sort_order ASC, id ASC'
     );

@@ -108,6 +108,37 @@ try {
     }
     verify(requestApi('colors', 'GET', null, $cookie, 200)['data']['colors'] == $normalizedColors, '不正な配色では保存値を変更しない');
 
+    $textBackgrounds = [
+        'text' => ['page', 'surface', 'header', 'card', 'input', 'secondary', 'navigation', 'navigation_active'],
+        'primary_text' => ['primary'],
+        'secondary_text' => ['secondary'],
+    ];
+    foreach ($textBackgrounds as $textKey => $backgrounds) {
+        foreach ($backgrounds as $background) {
+            $error = requestApi('colors', 'PUT', ['colors' => [$textKey => '#aabbcc', $background => '#AABBCC']], $cookie, 422);
+            verify(str_contains($error['error'], '文字色と背景色'), '文字が消える配色には理由を返す');
+        }
+    }
+    foreach ([['text' => '#ffffff'], ['primary' => '#5059a6'], ['primary_text' => '#90a9fd'], ['secondary_text' => '#eef0ff']] as $invisibleColors) {
+        requestApi('colors', 'PUT', ['colors' => $invisibleColors], $cookie, 422);
+    }
+    verify(requestApi('colors', 'GET', null, $cookie, 200)['data']['colors'] == $normalizedColors, '同色化を拒否した後も保存済み配色を保持する');
+    foreach ($textBackgrounds as $textKey => $backgrounds) {
+        foreach ($backgrounds as $background) {
+            foreach ([['#112233', '#122637'], ['#122637', '#112233']] as [$textColor, $backgroundColor]) {
+                $error = requestApi('colors', 'PUT', ['colors' => [$textKey => $textColor, $background => $backgroundColor]], $cookie, 422);
+                verify(str_contains($error['error'], '10以上'), 'RGB差の絶対値合計が9なら保存しない');
+            }
+            foreach ([['#112233', '#122638'], ['#122638', '#112233']] as [$textColor, $backgroundColor]) {
+                $readableColors = [$textKey => $textColor, $background => $backgroundColor];
+                verify(requestApi('colors', 'PUT', ['colors' => $readableColors], $cookie, 200)['data']['colors'] == $readableColors, 'RGB差の絶対値合計が10なら保存できる');
+            }
+        }
+    }
+    $sameBackgrounds = array_fill_keys(['page', 'surface', 'header', 'card', 'input', 'primary', 'secondary', 'border', 'progress', 'navigation', 'navigation_active'], '#222222');
+    verify(requestApi('colors', 'PUT', ['colors' => $sameBackgrounds], $cookie, 200)['data']['colors'] == $sameBackgrounds, '文字が異なる色なら背景同士は統一できる');
+    requestApi('colors', 'PUT', ['colors' => $customColors], $cookie, 200);
+
     $loginCookie = '';
     foreach ([
         ['email' => $registration['email'], 'password' => 'wrong-password'],
@@ -129,14 +160,103 @@ try {
         && $loginDebug['session']['password_verified_at'] !== null, '正しいパスワードでログインした場合だけ照合成功を記録');
     requestApi('logout', 'POST', null, $loginCookie, 200);
 
+    foreach (['', ' ', '　', " \t　\n", "\u{00A0}\u{2003}\u{FEFF}"] as $emptyTitle) {
+        $error = requestApi('add_task', 'POST', ['title' => $emptyTitle], $cookie, 422);
+        verify(str_contains($error['error'], 'タイトルを入力'), '空白だけのタイトルには入力案内を返す');
+    }
+    $pastSchedule = (new DateTimeImmutable('-1 minute', new DateTimeZone('Asia/Tokyo')))->format(DateTimeInterface::ATOM);
+    foreach ([$pastSchedule, 'not-a-date', '2099-02-30T12:00:00+09:00', 123] as $invalidSchedule) {
+        $error = requestApi('add_task', 'POST', ['title' => '保存されないTODO', 'scheduled_at' => $invalidSchedule], $cookie, 422);
+        verify(str_contains($error['error'], '締切日時'), '締切日時のエラーを返す');
+    }
+    verify(activeIds($cookie) === [], '不正な入力ではタスクを作成しない');
+
+    $futureSchedule = (new DateTimeImmutable('+1 day', new DateTimeZone('Asia/Tokyo')))->format(DateTimeInterface::ATOM);
+    $futureEnd = (new DateTimeImmutable('+2 days', new DateTimeZone('Asia/Tokyo')))->format(DateTimeInterface::ATOM);
+    $schedules = [
+        ['task_type' => 'unscheduled', 'starts_at' => null, 'scheduled_at' => null],
+        ['task_type' => 'deadline', 'starts_at' => null, 'scheduled_at' => $futureEnd],
+        ['task_type' => 'period', 'starts_at' => $futureSchedule, 'scheduled_at' => $futureEnd],
+    ];
+    $scheduleTaskIds = [];
+    foreach ($schedules as $schedule) {
+        $created = requestApi('add_task', 'POST', ['title' => '種類の検証'] + $schedule, $cookie, 201)['data'];
+        $scheduleTaskIds[] = $created['id'];
+        verify($created['task_type'] === $schedule['task_type']
+            && ($created['starts_at'] === null) === ($schedule['starts_at'] === null)
+            && ($created['scheduled_at'] === null) === ($schedule['scheduled_at'] === null), '3種類の日時の有無を正しく保存');
+        requestApi('complete_task', 'PATCH', ['id' => $created['id']], $cookie, 200);
+        $archived = requestApi('get_completed_tasks', 'GET', null, $cookie, 200)['data'][0];
+        verify($archived['task_type'] === $created['task_type'] && $archived['starts_at'] === $created['starts_at']
+            && $archived['scheduled_at'] === $created['scheduled_at'], '完了後も種類・開始・締切を保持');
+        $restored = requestApi('restore_task', 'PATCH', ['id' => $created['id']], $cookie, 200)['data'];
+        verify($restored['task_type'] === $created['task_type'] && $restored['starts_at'] === $created['starts_at'], '復元でも日時を保持');
+    }
+    $scheduleTaskId = $scheduleTaskIds[0];
+    foreach ($schedules as $schedule) {
+        $edited = requestApi('edit_task', 'PATCH', ['id' => $scheduleTaskId, 'title' => '種類を変更'] + $schedule, $cookie, 200)['data'];
+        verify($edited['task_type'] === $schedule['task_type'], '編集でタスクの種類を切り替えられる');
+    }
+    $invalidSchedules = [
+        ['task_type' => 'unknown'], ['task_type' => null], ['task_type' => []],
+        ['task_type' => 'unscheduled', 'scheduled_at' => $futureEnd],
+        ['task_type' => 'unscheduled', 'starts_at' => $futureSchedule],
+        ['task_type' => 'deadline'],
+        ['task_type' => 'deadline', 'starts_at' => $futureSchedule, 'scheduled_at' => $futureEnd],
+        ['task_type' => 'period', 'starts_at' => $futureSchedule],
+        ['task_type' => 'period', 'scheduled_at' => $futureEnd],
+        ['task_type' => 'period', 'starts_at' => $futureSchedule, 'scheduled_at' => $futureSchedule],
+        ['task_type' => 'period', 'starts_at' => $futureEnd, 'scheduled_at' => $futureSchedule],
+        ['task_type' => 'period', 'starts_at' => $pastSchedule, 'scheduled_at' => $futureEnd],
+        ['task_type' => 'period', 'starts_at' => 'not-a-date', 'scheduled_at' => $futureEnd],
+        ['task_type' => 'period', 'starts_at' => 123, 'scheduled_at' => $futureEnd],
+    ];
+    foreach ($invalidSchedules as $schedule) {
+        requestApi('add_task', 'POST', ['title' => '不正な種類'] + $schedule, $cookie, 422);
+        requestApi('edit_task', 'PATCH', ['id' => $scheduleTaskId, 'title' => '不正な編集'] + $schedule, $cookie, 422);
+    }
+    verify(count(activeIds($cookie)) === 3, '不正な種類・日時では追加しない');
+    $unchangedPeriod = requestApi('get_tasks', 'GET', null, $cookie, 200)['data'][0];
+    verify($unchangedPeriod['task_type'] === 'period' && $unchangedPeriod['title'] === '種類を変更', '不正な編集で種類やタイトルを変更しない');
+
+    // 時間経過後の状態をDBで再現し、元の日時のまま編集できることを確認する。
+    $expiredStart = (new DateTimeImmutable('-2 days'))->format('Y-m-d\TH:i:s.uP');
+    $expiredEnd = (new DateTimeImmutable('-1 day'))->format('Y-m-d\TH:i:s.uP');
+    $statement = $pdo->prepare('UPDATE tasks SET starts_at = :start, scheduled_at = :end WHERE id = :id');
+    $statement->execute([':start' => $expiredStart, ':end' => $expiredEnd, ':id' => $scheduleTaskId]);
+    $expiredPayload = ['id' => $scheduleTaskId, 'title' => '期限超過後の編集', 'task_type' => 'period', 'starts_at' => $expiredStart, 'scheduled_at' => $expiredEnd];
+    verify(requestApi('edit_task', 'PATCH', $expiredPayload, $cookie, 200)['data']['title'] === $expiredPayload['title'], '期限超過後も日時を変えず編集できる');
+    $preserved = requestApi('get_tasks', 'GET', null, $cookie, 200)['data'][0];
+    verify(new DateTimeImmutable($preserved['starts_at']) == new DateTimeImmutable($expiredStart)
+        && new DateTimeImmutable($preserved['scheduled_at']) == new DateTimeImmutable($expiredEnd), '変更していない日時は小数秒も保持する');
+    $expiredPayload['scheduled_at'] = $pastSchedule;
+    requestApi('edit_task', 'PATCH', $expiredPayload, $cookie, 422);
+    $unchangedPeriod = requestApi('get_tasks', 'GET', null, $cookie, 200)['data'][0];
+    verify(strtotime($unchangedPeriod['scheduled_at']) === strtotime($expiredEnd), '別の過去日時への変更は拒否する');
+    foreach ($scheduleTaskIds as $id) requestApi('delete_task', 'DELETE', ['id' => $id], $cookie, 200);
+
     $taskIds = [];
     foreach (['A', 'B', 'C'] as $title) {
         $task = requestApi('add_task', 'POST', [
-            'title' => $title, 'content' => '検索用の内容', 'scheduled_at' => '2026-10-06T10:00:00+09:00',
+            'title' => "　{$title}　", 'content' => '検索用の内容', 'scheduled_at' => $futureSchedule,
         ], $cookie, 201)['data'];
+        verify($task['title'] === $title, 'タイトル前後の全角スペースを除去する');
+        verify($task['task_type'] === 'deadline', '旧形式の予定日時は期限のみとして保存する');
         $taskIds[] = $task['id'];
     }
     [$a, $b, $c] = $taskIds;
+    foreach (['', '　', " \t　\n"] as $emptyTitle) {
+        requestApi('edit_task', 'PATCH', ['id' => $a, 'title' => $emptyTitle], $cookie, 422);
+    }
+    requestApi('edit_task', 'PATCH', ['id' => $a, 'title' => '変更されないタイトル', 'scheduled_at' => $pastSchedule], $cookie, 422);
+    $unchangedTask = requestApi('get_tasks', 'GET', null, $cookie, 200)['data'][0];
+    verify($unchangedTask['title'] === 'A' && $unchangedTask['content'] === '検索用の内容'
+        && strtotime($unchangedTask['scheduled_at']) === strtotime($futureSchedule), '不正な編集では既存データを変更しない');
+    $editedTask = requestApi('edit_task', 'PATCH', ['id' => $a, 'title' => '　A　', 'content' => '　', 'scheduled_at' => ''], $cookie, 200)['data'];
+    verify($editedTask['title'] === 'A' && $editedTask['content'] === null && $editedTask['scheduled_at'] === null, '内容と予定日時は未指定でも保存できる');
+    $utcSchedule = (new DateTimeImmutable($futureSchedule))->setTimezone(new DateTimeZone('UTC'))->format('Y-m-d\TH:i:s.v\Z');
+    $editedTask = requestApi('edit_task', 'PATCH', ['id' => $a, 'title' => 'A', 'scheduled_at' => $utcSchedule], $cookie, 200)['data'];
+    verify(strtotime($editedTask['scheduled_at']) === strtotime($futureSchedule), 'ブラウザーから送るUTC形式でも同じ予定日時を保存する');
     verify(activeIds($cookie) === [$a, $b, $c], '追加したタスクは末尾に並ぶ');
     requestApi('reorder_task', 'PATCH', ['task_ids' => [$b, $a, $c]], $cookie, 200);
     verify(activeIds($cookie) === [$b, $a, $c], '上へ移動');

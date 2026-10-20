@@ -85,7 +85,7 @@ try {
     verifyAppearance(appearanceRequest('colors', 'GET', null, $cookie)['appearance'] == $settings, '再取得でも設定を保持');
 
     // appearance を送らない旧画面でも、表示設定を消さずに配色を更新できる。
-    $updatedColors = ['primary' => '#5059A6'];
+    $updatedColors = ['primary' => '#404C88'];
     $legacyUpdate = appearanceRequest('colors', 'PUT', ['colors' => $updatedColors], $cookie);
     verifyAppearance($legacyUpdate['appearance'] == $settings && $legacyUpdate['colors'] == $updatedColors, '配色だけの更新で表示設定を維持');
 
@@ -116,6 +116,25 @@ try {
     $settings['blur_enabled'] = false;
     $settings['shadow_enabled'] = true;
     verifyAppearance(appearanceRequest('colors', 'PUT', ['colors' => $updatedColors, 'appearance' => $settings], $cookie)['appearance'] == $settings, 'ブラー無効・影有効も正しい真偽値で保持');
+
+    require_once $appDirectory . '/app/color_templates.php';
+    $catalog = colorTemplateCatalog();
+    $index = file_get_contents('http://127.0.0.1:8091/');
+    verifyAppearance(preg_match('~<script id="color-template-data" type="application/json">(.*?)</script>~s', $index, $templateData) === 1, '画面にサーバー管理のテンプレートを出力');
+    verifyAppearance(json_decode($templateData[1], true, 512, JSON_THROW_ON_ERROR) === $catalog, '画面とAPIで同じテンプレート定義を使う');
+    foreach (defaultColorTemplate()['colors'] as $key => $value) {
+        verifyAppearance(str_contains($index, "--theme-{$key}: {$value};"), '画面の初期色はデフォルトテンプレートの値');
+    }
+    foreach ($catalog['templates'] as $template) {
+        $selected = appearanceRequest('colors', 'PUT', ['colors' => $template['colors']], $cookie);
+        verifyAppearance($selected['colors'] === $template['colors'] && $selected['appearance'] == $settings, 'テンプレートへの切り替えは表示設定を保持');
+        $reloaded = appearanceRequest('colors', 'GET', null, $cookie);
+        verifyAppearance($reloaded['colors'] == $template['colors'] && $reloaded['appearance'] == $settings, '再取得でもテンプレートの配色と表示設定を保持');
+    }
+    $colorReset = appearanceRequest('colors', 'PUT', ['colors' => (object) []], $cookie);
+    verifyAppearance($colorReset['colors'] === [] && $colorReset['appearance'] == $settings, 'カラーのみ初期化しても枠・フォント・効果を保持');
+    $reloaded = appearanceRequest('colors', 'GET', null, $cookie);
+    verifyAppearance(array_replace(defaultColorTemplate()['colors'], $reloaded['colors']) === defaultColorTemplate()['colors'], 'カラー初期化後はデフォルトテンプレートを使う');
 
     $otherCookie = '';
     appearanceRequest('login', 'POST', ['email' => 'appearance-second@example.invalid', 'password' => 'appearance-test-password'], $otherCookie);

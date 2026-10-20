@@ -1,5 +1,29 @@
 // 配色の共有には色だけを含める。アカウントや表示効果の情報は含めない。
 const paletteFormat = {
+    // 本文は複数の背景上で使われる。ボタンの文字色は各ボタン背景と比較する。
+    textBackgrounds: {
+        text: ['page', 'surface', 'header', 'card', 'input', 'secondary', 'navigation', 'navigation_active'],
+        primary_text: ['primary'],
+        secondary_text: ['secondary'],
+    },
+
+    colorDistance(first, second) {
+        let distance = 0;
+        for (const offset of [1, 3, 5]) {
+            distance += Math.abs(parseInt(first.slice(offset, offset + 2), 16) - parseInt(second.slice(offset, offset + 2), 16));
+        }
+        return distance;
+    },
+
+    assertReadableColors(colors, defaults) {
+        const completeColors = { ...defaults, ...colors };
+        for (const [textKey, backgrounds] of Object.entries(this.textBackgrounds)) {
+            if (backgrounds.some(key => this.colorDistance(completeColors[textKey], completeColors[key]) < 10)) {
+                throw new Error('文字色と背景色が近すぎます。RGB各値の差の絶対値の合計を10以上にしてください。');
+            }
+        }
+    },
+
     normalizeColors(colors, defaults, requireAll = false) {
         if (!colors || typeof colors !== 'object' || Array.isArray(colors)) {
             throw new Error('配色データの形式が正しくありません。');
@@ -14,6 +38,7 @@ const paletteFormat = {
         if (requireAll && Object.keys(normalized).length !== Object.keys(defaults).length) {
             throw new Error('配色の項目が不足しています。共有文字列をすべて貼り付けてください。');
         }
+        this.assertReadableColors(normalized, defaults);
         return normalized;
     },
 

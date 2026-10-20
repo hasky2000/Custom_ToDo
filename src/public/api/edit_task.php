@@ -33,56 +33,44 @@ try {
     }
 
     $id = $input['id'] ?? null;
-    $title = is_string($input['title'] ?? null) ? trim($input['title']) : '';
-    $content = $input['content'] ?? null;
-    $scheduledAt = $input['scheduled_at'] ?? null;
-
     if (!is_int($id) || $id <= 0) {
         respond(['error' => '正しいTODO IDを指定してください。'], 422);
     }
 
-    if ($title === '') {
-        respond(['error' => 'タイトルは必須です。'], 422);
-    }
-
-    if ($content !== null && !is_string($content)) {
-        respond(['error' => '内容は文字列で入力してください。'], 422);
-    }
-
-    $content = is_string($content) ? trim($content) : null;
-    $content = $content === '' ? null : $content;
-
-    if ($scheduledAt !== null && !is_string($scheduledAt)) {
-        respond(['error' => '予定日時は文字列で指定してください。'], 422);
-    }
-
-    $scheduledAt = is_string($scheduledAt) ? trim($scheduledAt) : null;
-    $scheduledAt = $scheduledAt === '' ? null : $scheduledAt;
-
-    if ($scheduledAt !== null) {
-        try {
-            $scheduledAt = (new DateTimeImmutable($scheduledAt))->format(DateTimeInterface::ATOM);
-        } catch (Exception) {
-            respond(['error' => '予定日時の形式が正しくありません。'], 422);
-        }
-    }
-
+    require_once dirname(__DIR__, 2) . '/app/task_input.php';
     /** @var PDO $pdo */
     $pdo = require dirname(__DIR__, 2) . '/app/db.php';
+    $pdo->beginTransaction();
+    $statement = $pdo->prepare('SELECT task_type, starts_at, scheduled_at FROM tasks WHERE id = :id AND user_id = :user_id AND completed = FALSE FOR UPDATE');
+    $statement->execute([':id' => $id, ':user_id' => $userId]);
+    $existingTask = $statement->fetch();
+    if ($existingTask === false) {
+        $pdo->rollBack();
+        respond(['error' => '編集できるTODOが見つかりません。'], 404);
+    }
+    $taskInput = normalizeTaskInput($input, $existingTask);
+    $title = $taskInput['title'];
+    $content = $taskInput['content'];
+    $scheduledAt = $taskInput['scheduled_at'];
+
     $statement = $pdo->prepare(
         'UPDATE tasks
          SET title = :title,
              content = :content,
+             task_type = :task_type,
+             starts_at = :starts_at,
              scheduled_at = :scheduled_at,
              updated_at = CURRENT_TIMESTAMP
          WHERE id = :id AND user_id = :user_id AND completed = FALSE
-         RETURNING id, title, content, completed, progress, scheduled_at, created_at, updated_at'
+         RETURNING id, title, content, completed, progress, task_type, starts_at, scheduled_at, created_at, updated_at'
     );
     $statement->execute([
         ':id' => $id,
         ':user_id' => $userId,
         ':title' => $title,
         ':content' => $content,
+        ':task_type' => $taskInput['task_type'],
+        ':starts_at' => $taskInput['starts_at'],
         ':scheduled_at' => $scheduledAt,
     ]);
     $updatedTask = $statement->fetch();
@@ -91,10 +79,15 @@ try {
         respond(['error' => '編集できるTODOが見つかりません。'], 404);
     }
 
+    $pdo->commit();
     respond(['data' => $updatedTask], 200);
+} catch (InvalidArgumentException $exception) {
+    if (isset($pdo) && $pdo->inTransaction()) $pdo->rollBack();
+    respond(['error' => $exception->getMessage()], 422);
 } catch (JsonException) {
     respond(['error' => '正しい形式のJSONを送信してください。'], 400);
 } catch (Throwable $exception) {
+    if (isset($pdo) && $pdo->inTransaction()) $pdo->rollBack();
     error_log($exception->getMessage());
     respond(['error' => 'TODOを編集できませんでした。'], 500);
 }

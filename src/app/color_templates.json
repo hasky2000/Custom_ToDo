@@ -1,0 +1,41 @@
+{
+  "default_id": "blue",
+  "templates": [
+    {
+      "id": "blue",
+      "name": "ブルー",
+      "colors": {
+        "page": "#EEF0FF", "surface": "#FFFFFF", "header": "#90A9FD", "card": "#FFFFFF", "input": "#FFFFFF",
+        "primary": "#90A9FD", "primary_text": "#5059A6", "secondary": "#EEF0FF", "secondary_text": "#5059A6",
+        "text": "#5059A6", "border": "#EEF0FF", "progress": "#90A9FD", "navigation": "#FFFFFF", "navigation_active": "#EEF0FF"
+      }
+    },
+    {
+      "id": "green",
+      "name": "グリーン",
+      "colors": {
+        "page": "#EDF7F1", "surface": "#FAFDFA", "header": "#A7D8BD", "card": "#FFFFFF", "input": "#F4FAF6",
+        "primary": "#276749", "primary_text": "#FFFFFF", "secondary": "#DCEFE3", "secondary_text": "#214D38",
+        "text": "#214D38", "border": "#C7DED0", "progress": "#39865F", "navigation": "#FAFDFA", "navigation_active": "#DCEFE3"
+      }
+    },
+    {
+      "id": "warm",
+      "name": "ウォーム",
+      "colors": {
+        "page": "#FBF1E7", "surface": "#FFFCF7", "header": "#EAC3A3", "card": "#FFFFFF", "input": "#FFF9F0",
+        "primary": "#945032", "primary_text": "#FFFFFF", "secondary": "#F4E2CF", "secondary_text": "#623E2B",
+        "text": "#623E2B", "border": "#E7D4BF", "progress": "#B76E42", "navigation": "#FFFCF7", "navigation_active": "#F4E2CF"
+      }
+    },
+    {
+      "id": "dark",
+      "name": "ダーク",
+      "colors": {
+        "page": "#111827", "surface": "#172033", "header": "#24324D", "card": "#202C42", "input": "#152034",
+        "primary": "#A5B4FC", "primary_text": "#172033", "secondary": "#33425F", "secondary_text": "#F1F5F9",
+        "text": "#E5E7EB", "border": "#465570", "progress": "#A5B4FC", "navigation": "#172033", "navigation_active": "#33425F"
+      }
+    }
+  ]
+}

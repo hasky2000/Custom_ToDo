@@ -32,35 +32,11 @@ try {
         respond(['error' => 'JSONオブジェクトを送信してください。'], 400);
     }
 
-    $title = is_string($input['title'] ?? null) ? trim($input['title']) : '';
-    $content = $input['content'] ?? null;
-    $scheduledAt = $input['scheduled_at'] ?? null;
-
-    if ($title === '') {
-        respond(['error' => 'タイトルは必須です。'], 422);
-    }
-
-    if ($content !== null && !is_string($content)) {
-        respond(['error' => '内容は文字列で入力してください。'], 422);
-    }
-
-    $content = is_string($content) ? trim($content) : null;
-    $content = $content === '' ? null : $content;
-
-    if ($scheduledAt !== null && !is_string($scheduledAt)) {
-        respond(['error' => '予定日時は文字列で指定してください。'], 422);
-    }
-
-    $scheduledAt = is_string($scheduledAt) ? trim($scheduledAt) : null;
-    $scheduledAt = $scheduledAt === '' ? null : $scheduledAt;
-
-    if ($scheduledAt !== null) {
-        try {
-            $scheduledAt = (new DateTimeImmutable($scheduledAt))->format(DateTimeInterface::ATOM);
-        } catch (Exception) {
-            respond(['error' => '予定日時の形式が正しくありません。'], 422);
-        }
-    }
+    require_once dirname(__DIR__, 2) . '/app/task_input.php';
+    $taskInput = normalizeTaskInput($input);
+    $title = $taskInput['title'];
+    $content = $taskInput['content'];
+    $scheduledAt = $taskInput['scheduled_at'];
 
     /** @var PDO $pdo */
     $pdo = require dirname(__DIR__, 2) . '/app/db.php';
@@ -68,14 +44,16 @@ try {
     $pdo->beginTransaction();
     lockTaskOrder($pdo, $userId);
 
-    $sql = 'INSERT INTO tasks (user_id, title, content, scheduled_at, sort_order)
-            VALUES (:user_id, :title, :content, :scheduled_at, :sort_order)
-            RETURNING id, title, content, completed, progress, scheduled_at, created_at, updated_at';
+    $sql = 'INSERT INTO tasks (user_id, title, content, task_type, starts_at, scheduled_at, sort_order)
+            VALUES (:user_id, :title, :content, :task_type, :starts_at, :scheduled_at, :sort_order)
+            RETURNING id, title, content, completed, progress, task_type, starts_at, scheduled_at, created_at, updated_at';
     $statement = $pdo->prepare($sql);
     $statement->execute([
         ':user_id' => $userId,
         ':title' => $title,
         ':content' => $content,
+        ':task_type' => $taskInput['task_type'],
+        ':starts_at' => $taskInput['starts_at'],
         ':scheduled_at' => $scheduledAt,
         ':sort_order' => nextTaskOrder($pdo, $userId),
     ]);
@@ -83,6 +61,8 @@ try {
     $task = $statement->fetch();
     $pdo->commit();
     respond(['data' => $task], 201);
+} catch (InvalidArgumentException $exception) {
+    respond(['error' => $exception->getMessage()], 422);
 } catch (JsonException) {
     respond(['error' => '正しい形式のJSONを送信してください。'], 400);
 } catch (Throwable $exception) {

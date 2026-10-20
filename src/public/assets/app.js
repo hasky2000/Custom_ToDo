@@ -21,6 +21,7 @@ const settingsEmail = document.querySelector('#settings-email');
 const todoPage = document.querySelector('#todo-page');
 const myPage = document.querySelector('#my-page');
 const pageTitle = document.querySelector('#page-title');
+const headerBack = document.querySelector('#header-back');
 const showTodoPageButton = document.querySelector('#show-todo-page');
 const showMyPageButton = document.querySelector('#show-my-page');
 const completedTaskList = document.querySelector('#completed-task-list');
@@ -41,6 +42,7 @@ let isReordering = false;
 let dragState = null;
 let currentPage = 'todo';
 let pageRequestId = 0;
+let taskLabelDay = '';
 
 function showAuthMessage(text) {
     authMessage.textContent = text;
@@ -78,7 +80,11 @@ function showPage(page) {
     settingsPage.classList.toggle('hidden', page !== 'settings');
     settingsDetailPage.classList.toggle('hidden', page !== 'settings-detail');
     openTaskFormButton.classList.toggle('hidden', !isTodoPage);
-    pageTitle.textContent = { todo: '今日のタスク', my: 'マイページ', archive: 'アーカイブ', debug: 'デバッグ', settings: '設定', 'settings-detail': '設定' }[page];
+    pageTitle.textContent = { todo: 'TODOリスト', my: 'マイページ', archive: 'アーカイブ', debug: 'デバッグ', settings: '設定', 'settings-detail': '設定' }[page];
+    const backPage = { archive: 'my', debug: 'my', settings: 'my', 'settings-detail': 'settings' }[page];
+    headerBack.classList.toggle('hidden', !backPage);
+    headerBack.href = `#${backPage ?? 'todo'}`;
+    headerBack.setAttribute('aria-label', backPage === 'settings' ? '設定に戻る' : 'マイページに戻る');
     const navigationButtons = { todo: showTodoPageButton, my: showMyPageButton };
     const selectedNavigation = page === 'todo' ? 'todo' : 'my';
     for (const [name, button] of Object.entries(navigationButtons)) {
@@ -142,12 +148,7 @@ async function authenticate(url, form) {
 }
 
 function parseDatabaseDate(value) {
-    if (typeof value !== 'string') {
-        return new Date(NaN);
-    }
-    return new Date(value.replace(' ', 'T')
-        .replace(/(\.\d{3})\d+/, '$1')
-        .replace(/([+-]\d{2})$/, '$1:00'));
+    return taskSchedule.parseDate(value);
 }
 
 function toDateTimeLocalValue(value) {
@@ -164,6 +165,149 @@ function toDateTimeLocalValue(value) {
     return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
         + `T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
+
+const taskFormOriginals = new WeakMap();
+
+function taskDateUnchanged(form, name) {
+    const original = taskFormOriginals.get(form);
+    return original && original.task_type === form.elements.namedItem('task_type').value
+        && original[name] && form.elements.namedItem(name).value === toDateTimeLocalValue(original[name]);
+}
+
+function taskInputDate(form, name) {
+    const field = form.elements.namedItem(name);
+    if (field.disabled || !field.value) return null;
+    // 編集欄は分単位で表示するが、変更しなかった日時の秒は保存時にも保持する。
+    return taskDateUnchanged(form, name)
+        ? parseDatabaseDate(taskFormOriginals.get(form)[name]) : new Date(field.value);
+}
+
+function taskFormPayload(form) {
+    const dateValue = name => taskDateUnchanged(form, name) && !form.elements.namedItem(name).disabled
+        ? taskFormOriginals.get(form)[name] : taskInputDate(form, name)?.toISOString() ?? null;
+    return {
+        title: form.elements.namedItem('title').value.trim(),
+        content: form.elements.namedItem('content').value,
+        task_type: form.elements.namedItem('task_type').value,
+        starts_at: dateValue('starts_at'),
+        scheduled_at: dateValue('scheduled_at'),
+    };
+}
+
+function updateTaskFormState(form) {
+    const type = form.elements.namedItem('task_type').value;
+    const title = form.elements.namedItem('title');
+    const startsAt = form.elements.namedItem('starts_at');
+    const scheduledAt = form.elements.namedItem('scheduled_at');
+    form.querySelector('[data-start-field]').hidden = type !== 'period';
+    form.querySelector('[data-deadline-field]').hidden = type === 'unscheduled';
+    startsAt.disabled = type !== 'period';
+    startsAt.required = type === 'period';
+    scheduledAt.disabled = type === 'unscheduled';
+    scheduledAt.required = type !== 'unscheduled';
+    form.querySelector('[data-deadline-label]').textContent = type === 'period' ? '終了日時（締切）' : '締切日時';
+    form.querySelector('[data-task-type-help]').textContent = {
+        unscheduled: '開始・締切を指定せずに登録します。',
+        deadline: '締切だけを指定します。一覧に残り時間を表示します。',
+        period: '開始と終了を指定します。終了日時を締切として残り時間を表示します。',
+    }[type];
+    const titleError = title.value.trim() === ''
+        ? 'タイトルを入力してください。空白のみでは登録できません。' : '';
+    title.setCustomValidity(titleError);
+
+    const now = Date.now();
+    const minimum = toDateTimeLocalValue(new Date(Math.ceil(now / 60000) * 60000).toISOString());
+    for (const [name, label] of [['starts_at', '開始日時'], ['scheduled_at', type === 'period' ? '終了日時' : '締切日時']]) {
+        const field = form.elements.namedItem(name);
+        field.setCustomValidity('');
+        field.min = taskDateUnchanged(form, name) ? field.value : minimum;
+        if (field.disabled) continue;
+        const date = taskInputDate(form, name);
+        let error = '';
+        if (field.validity.badInput || (date && Number.isNaN(date.getTime()))) {
+            error = `${label}の形式が正しくありません。`;
+        } else if (!date) {
+            error = `${label}を指定してください。`;
+        } else if (date.getTime() < now && !taskDateUnchanged(form, name)) {
+            error = `${label}は現在時刻以降を指定してください。`;
+        }
+        field.setCustomValidity(error);
+    }
+    const start = taskInputDate(form, 'starts_at');
+    const end = taskInputDate(form, 'scheduled_at');
+    if (type === 'period' && start && end && start.getTime() >= end.getTime()) {
+        scheduledAt.setCustomValidity('終了日時は開始日時より後を指定してください。');
+    }
+    form.querySelector('[data-task-form-message]').textContent = titleError
+        || (!startsAt.disabled && startsAt.validationMessage) || (!scheduledAt.disabled && scheduledAt.validationMessage) || '';
+    form.querySelector('[type="submit"]').disabled = titleError !== '' || form.dataset.submitting === 'true';
+    return form.checkValidity();
+}
+
+for (const form of [taskForm, editTaskForm]) {
+    form.addEventListener('input', () => updateTaskFormState(form));
+    form.addEventListener('change', () => updateTaskFormState(form));
+    for (const name of ['starts_at', 'scheduled_at']) {
+        form.elements.namedItem(name).addEventListener('focus', () => updateTaskFormState(form));
+    }
+    updateTaskFormState(form);
+}
+
+function updateTaskTiming(element, now = Date.now()) {
+    const state = taskSchedule.timing({
+        task_type: element.dataset.taskType,
+        starts_at: element.dataset.startsAt,
+        scheduled_at: element.dataset.scheduledAt,
+    }, now);
+    if (element.textContent !== state.text) element.textContent = state.text;
+    if (element.dataset.status !== state.status) element.dataset.status = state.status;
+}
+
+function createTaskScheduleElement(task, completed = false) {
+    const schedule = document.createElement('div');
+    const type = taskSchedule.typeOf(task);
+    const badge = document.createElement('span');
+    badge.className = 'task-kind';
+    badge.dataset.type = type;
+    badge.textContent = taskSchedule.labels[type];
+    schedule.append(badge);
+    if (!completed && type !== 'unscheduled') {
+        const timing = document.createElement('p');
+        timing.className = 'task-timing';
+        timing.dataset.taskType = type;
+        timing.dataset.startsAt = task.starts_at ?? '';
+        timing.dataset.scheduledAt = task.scheduled_at;
+        updateTaskTiming(timing);
+        schedule.append(timing);
+    }
+    for (const [value, label] of [[task.starts_at, '開始'], [task.scheduled_at, type === 'period' ? '終了' : '締切']]) {
+        if (!value) continue;
+        const line = document.createElement('p');
+        line.className = 'task-dates';
+        const time = document.createElement('time');
+        const date = parseDatabaseDate(value);
+        time.dateTime = date.toISOString();
+        time.textContent = date.toLocaleString('ja-JP', { dateStyle: 'medium', timeStyle: 'short' });
+        line.append(`${label}: `, time);
+        schedule.append(line);
+    }
+    return schedule;
+}
+
+function refreshTaskTimings() {
+    if (document.hidden || appShell.classList.contains('hidden')) return;
+    const now = Date.now();
+    taskList.querySelectorAll('.task-timing').forEach(element => updateTaskTiming(element, now));
+    const day = taskSchedule.dayKey(new Date(now));
+    if (day !== taskLabelDay) {
+        taskList.querySelectorAll('[data-task-date-label]').forEach(label => {
+            label.textContent = taskSchedule.dateLabel(label.dataset.taskDateLabel, now);
+        });
+        taskLabelDay = day;
+    }
+}
+setInterval(refreshTaskTimings, 1000);
+document.addEventListener('visibilitychange', refreshTaskTimings);
 
 function createTaskElement(task, total) {
     const item = document.createElement('li');
@@ -184,7 +328,7 @@ function createTaskElement(task, total) {
     completeCheckbox.addEventListener('change', () => completeTask(task.id));
 
     const title = document.createElement('h3');
-    title.className = 'min-w-0 flex-1 truncate text-lg font-semibold';
+    title.className = 'truncate text-lg font-semibold';
     title.textContent = task.title;
 
     const chevron = document.createElement('span');
@@ -207,7 +351,10 @@ function createTaskElement(task, total) {
     dragHandle.addEventListener('pointerdown', (event) => startTaskDrag(event, item, dragHandle));
     dragHandle.addEventListener('keydown', (event) => moveTaskWithKeyboard(event, item));
 
-    summary.append(completeCheckbox, title, dragHandle, chevron);
+    const textArea = document.createElement('div');
+    textArea.className = 'min-w-0 flex-1';
+    textArea.append(title, createTaskScheduleElement(task));
+    summary.append(completeCheckbox, textArea, dragHandle, chevron);
 
     const detailArea = document.createElement('div');
     detailArea.className = 'border-t border-line px-5 pb-5 pt-4';
@@ -217,17 +364,6 @@ function createTaskElement(task, total) {
         content.className = 'whitespace-pre-wrap text-sm leading-6 text-ink';
         content.textContent = task.content;
         detailArea.append(content);
-    }
-
-    if (task.scheduled_at) {
-        const scheduledAt = document.createElement('p');
-        scheduledAt.className = 'mt-3 text-sm font-semibold text-ink';
-        const date = parseDatabaseDate(task.scheduled_at);
-        scheduledAt.textContent = `予定: ${date.toLocaleString('ja-JP', {
-            dateStyle: 'medium',
-            timeStyle: 'short',
-        })}`;
-        detailArea.append(scheduledAt);
     }
 
     const progressArea = document.createElement('div');
@@ -302,14 +438,34 @@ async function getTasks() {
     taskCount.textContent = `${result.data.length}件`;
 
     if (result.data.length === 0) {
-        const emptyItem = document.createElement('li');
+        const emptyItem = document.createElement('p');
         emptyItem.className = 'rounded-2xl border border-dashed border-line bg-card p-8 text-center text-ink';
         emptyItem.textContent = 'TODOはまだありません。';
         taskList.append(emptyItem);
         return;
     }
 
-    taskList.append(...result.data.map((task) => createTaskElement(task, result.data.length)));
+    for (const group of taskSchedule.groupByDate(result.data)) {
+        const section = document.createElement('section');
+        section.className = 'space-y-3';
+        const heading = document.createElement('h2');
+        heading.id = `task-date-${group.date ?? 'none'}`;
+        heading.className = 'flex items-center justify-between gap-3 font-bold';
+        section.setAttribute('aria-labelledby', heading.id);
+        const label = document.createElement('span');
+        label.dataset.taskDateLabel = group.date ?? '';
+        label.textContent = taskSchedule.dateLabel(group.date);
+        const count = document.createElement('span');
+        count.className = 'shrink-0 text-sm font-medium';
+        count.textContent = `${group.tasks.length}件`;
+        heading.append(label, count);
+        const list = document.createElement('ul');
+        list.className = 'space-y-4';
+        list.dataset.taskDate = group.date ?? '';
+        list.append(...group.tasks.map(task => createTaskElement(task, group.tasks.length)));
+        section.append(heading, list);
+        taskList.append(section);
+    }
 }
 
 function taskOrder() {
@@ -320,7 +476,7 @@ function restoreTaskOrder(ids) {
     for (const id of ids) {
         const item = taskList.querySelector(`[data-task-id="${id}"]`);
         if (item) {
-            taskList.append(item);
+            item.parentElement.append(item);
         }
     }
 }
@@ -351,7 +507,7 @@ async function saveTaskOrder(originalOrder, movedId) {
     } finally {
         isReordering = false;
         taskList.querySelectorAll('[data-drag-handle]').forEach((button) => {
-            button.disabled = taskOrder().length < 2;
+            button.disabled = button.closest('[data-task-date]').children.length < 2;
         });
         const button = taskList.querySelector(`[data-drag-handle="${movedId}"]`);
         if (button && !button.disabled) {
@@ -371,7 +527,7 @@ function moveTaskWithKeyboard(event, item) {
     if (!neighbor) {
         return;
     }
-    taskList.insertBefore(item, event.key === 'ArrowUp' ? neighbor : neighbor.nextElementSibling);
+    item.parentElement.insertBefore(item, event.key === 'ArrowUp' ? neighbor : neighbor.nextElementSibling);
     saveTaskOrder(originalOrder, Number(item.dataset.taskId));
 }
 
@@ -383,7 +539,7 @@ function startTaskDrag(event, item, handle) {
     event.stopPropagation();
     const rectangle = item.getBoundingClientRect();
     dragState = {
-        item, handle, pointerId: event.pointerId, originalOrder: taskOrder(),
+        item, handle, list: item.parentElement, pointerId: event.pointerId, originalOrder: taskOrder(),
         startY: event.clientY, pointerY: event.clientY, offsetY: event.clientY - rectangle.top,
         preview: null, scrollFrame: null, previousUserSelect: document.body.style.userSelect,
     };
@@ -423,8 +579,8 @@ function moveTaskDrag(event) {
 }
 
 function placeDraggedTask() {
-    const { item, pointerY } = dragState;
-    const nextItem = [...taskList.children].find((candidate) => {
+    const { item, list, pointerY } = dragState;
+    const nextItem = [...list.children].find((candidate) => {
         if (candidate === item) {
             return false;
         }
@@ -432,7 +588,7 @@ function placeDraggedTask() {
         return pointerY < rectangle.top + rectangle.height / 2;
     });
     if (item.nextElementSibling !== (nextItem ?? null)) {
-        taskList.insertBefore(item, nextItem ?? null);
+        list.insertBefore(item, nextItem ?? null);
         // DOM内で移動したハンドルも引き続きポインターを追跡する。
         dragState.handle.setPointerCapture(dragState.pointerId);
     }
@@ -442,7 +598,7 @@ function scrollDuringTaskDrag() {
     if (!dragState?.preview) {
         return;
     }
-    const topEdge = document.querySelector('header').getBoundingClientRect().bottom + 50;
+    const topEdge = document.querySelector('#app-topbar').getBoundingClientRect().bottom + 50;
     const bottomEdge = document.querySelector('nav').getBoundingClientRect().top - 50;
     const y = dragState.pointerY;
     const distance = y < topEdge ? -Math.min(16, (topEdge - y) / 4)
@@ -512,7 +668,7 @@ function createCompletedTaskElement(task) {
     const title = document.createElement('h3');
     title.className = 'font-semibold text-ink line-through';
     title.textContent = task.title;
-    textArea.append(title);
+    textArea.append(title, createTaskScheduleElement(task, true));
 
     if (task.content) {
         const content = document.createElement('p');
@@ -612,11 +768,11 @@ async function restoreTask(id, button) {
     }
 }
 
-async function addTask(title, content, scheduledAt) {
+async function addTask(task) {
     await requestJson('/api/add_task.php', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, content, scheduled_at: scheduledAt }),
+        body: JSON.stringify(task),
     });
 }
 
@@ -634,11 +790,11 @@ async function updateTask(id, progress) {
     }
 }
 
-async function editTask(id, title, content, scheduledAt) {
+async function editTask(id, task) {
     await requestJson('/api/edit_task.php', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, title, content, scheduled_at: scheduledAt }),
+        body: JSON.stringify({ id, ...task }),
     });
 }
 
@@ -646,7 +802,11 @@ function openEditDialog(task) {
     document.querySelector('#edit-id').value = task.id;
     document.querySelector('#edit-title').value = task.title;
     document.querySelector('#edit-content').value = task.content ?? '';
+    taskFormOriginals.set(editTaskForm, task);
+    document.querySelector('#edit-task-type').value = taskSchedule.typeOf(task);
+    document.querySelector('#edit-starts-at').value = toDateTimeLocalValue(task.starts_at);
     document.querySelector('#edit-scheduled-at').value = toDateTimeLocalValue(task.scheduled_at);
+    updateTaskFormState(editTaskForm);
     editTaskDialog.showModal();
     document.querySelector('#edit-title').focus();
 }
@@ -681,47 +841,54 @@ async function deleteTask(id) {
 
 taskForm.addEventListener('submit', async (event) => {
     event.preventDefault();
-    const formData = new FormData(taskForm);
-    const scheduledAtInput = formData.get('scheduled_at');
-    const scheduledAt = scheduledAtInput
-        ? new Date(scheduledAtInput).toISOString()
-        : null;
+    if (taskForm.dataset.submitting === 'true' || !updateTaskFormState(taskForm)) {
+        taskForm.reportValidity();
+        return;
+    }
+    taskForm.dataset.submitting = 'true';
+    taskForm.querySelector('[type="submit"]').disabled = true;
 
     try {
-        await addTask(formData.get('title'), formData.get('content'), scheduledAt);
+        await addTask(taskFormPayload(taskForm));
         taskForm.reset();
+        updateTaskFormState(taskForm);
         taskDialog.close();
         showMessage('TODOを追加しました。');
         await getTasks();
     } catch (error) {
-        showMessage(error.message, true);
+        taskForm.querySelector('[data-task-form-message]').textContent = error.message;
+        if (!taskDialog.open) showMessage(error.message, true);
+    } finally {
+        taskForm.dataset.submitting = 'false';
+        taskForm.querySelector('[type="submit"]').disabled = taskForm.elements.namedItem('title').value.trim() === '';
     }
 });
 
 editTaskForm.addEventListener('submit', async (event) => {
     event.preventDefault();
-    const formData = new FormData(editTaskForm);
-    const scheduledAtInput = formData.get('scheduled_at');
-    const scheduledAt = scheduledAtInput
-        ? new Date(scheduledAtInput).toISOString()
-        : null;
+    if (editTaskForm.dataset.submitting === 'true' || !updateTaskFormState(editTaskForm)) {
+        editTaskForm.reportValidity();
+        return;
+    }
+    editTaskForm.dataset.submitting = 'true';
+    editTaskForm.querySelector('[type="submit"]').disabled = true;
 
     try {
-        await editTask(
-            Number(formData.get('id')),
-            formData.get('title'),
-            formData.get('content'),
-            scheduledAt,
-        );
+        await editTask(Number(editTaskForm.elements.namedItem('id').value), taskFormPayload(editTaskForm));
         editTaskDialog.close();
         showMessage('TODOを編集しました。');
         await getTasks();
     } catch (error) {
-        showMessage(error.message, true);
+        editTaskForm.querySelector('[data-task-form-message]').textContent = error.message;
+        if (!editTaskDialog.open) showMessage(error.message, true);
+    } finally {
+        editTaskForm.dataset.submitting = 'false';
+        editTaskForm.querySelector('[type="submit"]').disabled = editTaskForm.elements.namedItem('title').value.trim() === '';
     }
 });
 
 openTaskFormButton.addEventListener('click', () => {
+    updateTaskFormState(taskForm);
     taskDialog.showModal();
     document.querySelector('#title').focus();
 });

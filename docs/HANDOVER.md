@@ -6,7 +6,7 @@
 - 調査時のコード：`main` / `3f94814`（本資料追加前）
 - 標準環境：Windows + WSL2のUbuntu + Docker Desktop（Linuxコンテナ）
 - 再現する範囲：各自の空のDBから新規登録して開発を再開する。作者のアカウント・TODO・パスワードは不要。
-- 完了条件：画面表示、アカウント登録、TODO操作、設定保存、3種類の自動テストを確認する。
+- 完了条件：画面表示、アカウント登録、TODO操作、設定保存、4種類の自動テストを確認する。
 
 ## 1. 最初にAIへ渡す依頼文
 
@@ -53,7 +53,7 @@ WSL2のUbuntuとDocker Desktopを使い、空のDBから開発を再開する方
 | ブラウザーのURL | `http://localhost:8080` → コンテナの80番 | `compose.yaml` |
 | DB接続 | Compose内部の `db:5432`。ホストにはDBポートを公開しない | `compose.yaml` |
 | DBの永続化 | Compose管理の名前付きボリューム `postgres_data` | `compose.yaml` |
-| 初期化SQL | `database/init/001` ～ `007` の順 | `database/init` |
+| 初期化SQL | `database/init/001` ～ `008` の順 | `database/init` |
 | フロントエンド | PHPの画面 + JavaScript + CSS。フロント用サーバーは不要 | `src/public` |
 | 外部アクセス | Dockerイメージ、npm、Tailwind CDN、Google Fonts、GitHub | 各設定・画面 |
 
@@ -198,6 +198,7 @@ DBの初期化SQLは空のデータ領域の初回起動時に順番に実行さ
 
 ```bash
 docker compose run --rm --no-deps node npm run test:settings-sharing
+docker compose run --rm --no-deps node npm run test:task-schedule
 bash tests/run.sh api
 bash tests/run.sh appearance
 ```
@@ -205,6 +206,7 @@ bash tests/run.sh appearance
 | テスト | 確認内容 | 成功条件 |
 | --- | --- | --- |
 | `test:settings-sharing` | 配色の共有形式、不正値、保存順序、保存失敗・ログアウト時の扱い | 全件成功・終了コード0 |
+| `test:task-schedule` | 3種類の表示、開始・締切の境界、残り時間、日付分類、タイムゾーン | 全件成功・終了コード0 |
 | `api` | 認証、並べ替え、完了・復元、配色、他ユーザーとの分離、デバッグなど | 検証件数が出て終了コード0 |
 | `appearance` | 枠・ブラー・影・フォントの保存と不正値など | 検証件数が出て終了コード0 |
 
@@ -221,13 +223,13 @@ docker compose exec -T php sh -c 'for file in app/*.php public/*.php public/api/
 Windowsのブラウザーで以下を確認します。AIが画面操作できない場合は共同開発者が実施し、結果をAIに返してください。
 
 1. 自分用のメールアドレスと8文字以上のパスワードで新規登録する。確認欄にも同じパスワードを入力する。
-2. タイトル、内容、予定日時付きのTODOを2件追加する。
-3. 内容と予定日時を編集し、進捗を変更する。
-4. ドラッグや移動操作で並べ替え、再読み込み後も順序が残ることを確認する。
+2. 「日時なし」「期限のみ」「開始・終了あり」のTODOを追加し、種類ラベルと残り時間を確認する。
+3. 種類・内容・開始日時・締切日時を編集し、進捗を変更する。終了が開始以前の入力は拒否されることも確認する。
+4. 同じ締切日のTODOを2件用意し、ドラッグやキーボードで並べ替え、再読み込み後も順序が残ることを確認する。日付をまたいだ並べ替えは行わない。
 5. 完了させるとホームから消え、アーカイブへ移ることを確認する。進捗100%でも完了扱いになる。
 6. アーカイブで検索し、復元する。未完了・進捗0%で一覧の末尾へ戻ることを確認する。
-7. 配色、枠の太さ、影・ブラー・フォントを変更する。「アカウントに自動保存しました。」を確認し、再読み込み後も設定が残ることを確認する。
-8. 配色の共有文字列をエクスポート・インポートする。共有されるのは色で、枠などの表示設定は含まれない。
+7. 配色テンプレート、枠の太さ、影・ブラー・フォントを変更する。「アカウントに自動保存しました。」を確認し、再読み込み後も設定が残ることを確認する。
+8. 配色ページの「カラーを初期設定に戻す」で配色だけが戻り、表示設定を保持することを確認する。配色の共有文字列をエクスポート・インポートする。共有されるのは色で、枠などの表示設定は含まれない。
 9. TODOを削除し、ログアウト・再ログインできることを確認する。
 
 画面未確認やテスト失敗が残る場合は「構築完了」とせず、残っている確認項目を報告します。
@@ -270,8 +272,8 @@ URLはすべて `/api/<ファイル名>`。リクエスト・レスポンスはJ
 | `logout.php` | POST | 不要 | セッション終了 |
 | `me.php` | GETで利用 | 必要 | ログイン中のユーザー。現実装にメソッド制限なし |
 | `get_tasks.php` | GET | 必要 | 未完了の一覧を保存済み順序で取得 |
-| `add_task.php` | POST | 必要 | `title`, 任意の `content`, `scheduled_at` |
-| `edit_task.php` | PATCH | 必要 | `id`, `title`, `content`, `scheduled_at` |
+| `add_task.php` | POST | 必要 | `title`, `content`, `task_type`, `starts_at`, `scheduled_at` |
+| `edit_task.php` | PATCH | 必要 | `id`, `title`, `content`, `task_type`, `starts_at`, `scheduled_at` |
 | `update_task.php` | PATCH | 必要 | `id`, `progress` |
 | `reorder_task.php` | PATCH | 必要 | `task_ids`：未完了TODO全件の整数IDを新しい順序で指定 |
 | `complete_task.php` | PATCH | 必要 | `id` |
@@ -281,7 +283,33 @@ URLはすべて `/api/<ファイル名>`。リクエスト・レスポンスはJ
 | `colors.php` | GET / PUT | 必要 | 配色・表示設定の取得と保存 |
 | `debug.php` | GET | 必要 | 自分のアカウント、タスク、認証・実行環境の確認 |
 
-予定日時をAPIに直接渡す場合は `2026-10-20T10:00:00+09:00` のようにタイムゾーンを含めます。`colors.php` のPUTでは `colors` オブジェクトが必須で、色は6桁HEXです。`appearance` は任意で、省略時は保存済み設定を保持します。詳しい入力判定は各PHPとテストが基準です。
+日時をAPIに直接渡す場合は `2026-10-21T10:00:00+09:00` のようにタイムゾーンを含めます。新しく指定する日時は現在時刻以降にします。既存の日時を変えなければ、開始・締切後もタイトルや内容を編集できます。`colors.php` のPUTでは `colors` オブジェクトが必須で、色は6桁HEXです。`appearance` は任意で、省略時は保存済み設定を保持します。詳しい入力判定は各PHPとテストが基準です。
+
+### 配色テンプレートと初期配色への復旧
+
+テンプレートは公開ディレクトリ外の `src/app/color_templates.json` で管理します。`templates` にID・名前・14項目の色を持ち、`default_id` に初期配色のIDを指定します。標準ではブルー（初期配色）・グリーン・ウォーム・ダークの4種類です。画面からテンプレートを編集する機能はありません。
+
+PHPはJSONのカラーコード・項目数・IDの重複・文字と背景のRGB差を検証します。画面の初期CSS、JavaScriptの初期値、APIの入力判定は同じ初期テンプレートを使います。テンプレートの選択は配色だけを自動保存し、フォント・枠・効果の設定を保持します。
+
+配色ページの「変更を取り消す」の右に「カラーを初期設定に戻す」を配置しています。このボタンと結果メッセージは固定の背景・文字・枠・フォントで表示し、ユーザーの配色やボタン枠の設定に影響されません。テンプレートボタンの背景・文字は現在の配色を使い、色見本で各テンプレートの色を示します。配色や別の表示項目に不正な入力があっても、配色を初期状態へ戻し、最後の有効な表示設定を保持して保存します。
+
+初期配色への復旧では `colors` を空のオブジェクトにして、サーバーの初期テンプレートを使います。保存できない場合も表示は復旧し、ボタンの下に再試行の案内を出します。
+
+### タスクの種類と残り時間
+
+`scheduled_at` は従来の列を引き継ぎ、締切（期間タスクでは終了日時）として扱います。種類を送らない旧API形式は、予定日時の有無から「期限のみ」「日時なし」を判定します。
+
+| `task_type` | 表示 | `starts_at` | `scheduled_at` |
+| --- | --- | --- | --- |
+| `unscheduled` | 日時なし | null | null |
+| `deadline` | 期限のみ | null | 必須 |
+| `period` | 期間あり | 必須 | 必須・開始より後 |
+
+TODO一覧はブラウザーの現地日付を使い、締切日の昇順に分類します。期間タスクは終了日で分類し、日時なしは末尾の別枠にまとめます。同じ日付内では保存済みの並び順を維持し、ドラッグ・キーボードで変更できます。「今日」「明日」の表示は日付が変わると更新します。
+
+ヘッダーの高さは標準表示で63pxです。TODO画面のタイトルはヘッダーの「TODOリスト」にまとめています。アーカイブ・設定・デバッグの戻るリンクは、ヘッダー内の矢印アイコンに統一しています。設定の詳細からは設定一覧へ、それ以外の詳細画面からはマイページへ戻ります。
+
+残り時間は画面で1秒ごとに更新します。期間タスクは開始前・進行中、締切後は期限超過と超過時間を表示します。完了済み一覧では種類と日時を保持し、カウントダウンは表示しません。
 
 ## 7. うまく動かない場合
 
@@ -331,6 +359,7 @@ docker compose exec -T db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "
 | `005_add_task_order_and_completed_at.sql` | 並び順、完了日時、既存値の補完 |
 | `006_add_user_colors.sql` | 配色テーブル |
 | `007_add_user_appearance.sql` | 表示設定のJSONB列と制約 |
+| `008_add_task_schedule_types.sql` | 3種類のタスク、開始日時、種類と日時の整合性制約。従来の予定日時を締切として保持 |
 
 自動のマイグレーション履歴管理はありません。SQL本文と実DBを比較し、不足分と適用順を決めます。変更前には次のようにUbuntu内のGit管理外へバックアップします。
 
@@ -345,6 +374,12 @@ test -s "$backup_file"
 
 ```bash
 docker compose exec -T db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1 --single-transaction' < database/init/007_add_user_appearance.sql
+```
+
+タスク種別の列がまだない既存DBでは、同様にバックアップしてから次を適用します。既存のタスクは、予定日時があれば「期限のみ」、なければ「日時なし」に移行します。
+
+```bash
+docker compose exec -T db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1 --single-transaction' < database/init/008_add_task_schedule_types.sql
 ```
 
 全SQLを確認なしに一括適用しないでください。旧構造の所有者なしタスクは、新規登録時にそのユーザーへ紐付ける互換処理があります。既存データを扱う場合は対象を先に確認します。`docker compose down -v` はDBを消すため、通常の停止や復旧では使いません。
@@ -406,7 +441,7 @@ git pull --ff-only origin main
 対象コード：ブランチとコミット
 アクセス先：http://localhost:8080（変更した場合はそのURL）
 サービス：php / db / nodeの状態、DBのhealthy判定
-自動テスト：settings-sharing / api / appearance の結果
+自動テスト：settings-sharing / task-schedule / api / appearance の結果
 画面：登録、TODO操作、並べ替え、完了・復元、設定保存、再ログインの結果
 ローカルで変更した設定：秘密値を除いて記載
 未完了・人間の操作待ち：なければ「なし」、あれば操作と再開手順

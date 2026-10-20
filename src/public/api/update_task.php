@@ -47,7 +47,7 @@ try {
              completed_at = CASE WHEN :archive_progress = 100 THEN CURRENT_TIMESTAMP ELSE completed_at END,
              updated_at = CURRENT_TIMESTAMP
          WHERE id = :id AND user_id = :user_id AND completed = FALSE
-         RETURNING id, title, content, completed, progress, scheduled_at, created_at, updated_at'
+         RETURNING id, title, content, completed, progress, task_type, starts_at, scheduled_at, created_at, updated_at'
     );
     $statement->execute([
         ':id' => $id,

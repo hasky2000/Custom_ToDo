@@ -42,7 +42,7 @@ try {
              completed_at = CURRENT_TIMESTAMP,
              updated_at = CURRENT_TIMESTAMP
          WHERE id = :id AND user_id = :user_id AND completed = FALSE
-         RETURNING id, title, content, completed, progress, scheduled_at, created_at, updated_at'
+         RETURNING id, title, content, completed, progress, task_type, starts_at, scheduled_at, created_at, updated_at'
     );
     $statement->execute([':id' => $id, ':user_id' => $userId]);
     $completedTask = $statement->fetch();

@@ -53,11 +53,8 @@ try {
         respond(['error' => '配色をオブジェクト形式で指定してください。'], 422);
     }
 
-    $allowedComponents = [
-        'page', 'surface', 'header', 'card', 'input',
-        'primary', 'primary_text', 'secondary', 'secondary_text',
-        'text', 'border', 'progress', 'navigation', 'navigation_active',
-    ];
+    require_once dirname(__DIR__, 2) . '/app/color_templates.php';
+    $allowedComponents = colorComponentKeys();
     $colors = get_object_vars($input->colors);
     foreach ($colors as $component => $color) {
         // CSSやURLを受け付けず、6桁のHEXカラーだけを保存する。
@@ -66,6 +63,10 @@ try {
             respond(['error' => '設定項目と色を確認してください。色は#から始まる6桁で指定します。'], 422);
         }
         $colors[$component] = strtoupper($color);
+    }
+    $paletteError = colorPaletteError($colors, defaultColorTemplate()['colors']);
+    if ($paletteError !== null) {
+        respond(['error' => $paletteError], 422);
     }
 
     // 旧画面から配色だけ送られた場合は、保存済みの表示設定を変更しない。

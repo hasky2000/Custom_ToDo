@@ -2,6 +2,7 @@
   "name": "custom-todo",
   "private": true,
   "scripts": {
+    "test:task-schedule": "node tests/task-schedule.test.cjs",
     "test:settings-sharing": "node tests/settings-sharing.test.cjs",
     "dev": "tailwindcss -i ./src/css/input.css -o ./src/public/assets/app.css --watch",
     "build": "tailwindcss -i ./src/css/input.css -o ./src/public/assets/app.css --minify"

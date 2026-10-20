@@ -27,7 +27,12 @@ const colorsForm = document.querySelector('#colors-form');
 const colorFields = document.querySelector('#color-fields');
 const colorsMessage = document.querySelector('#colors-message');
 const colorInputs = new Map();
-const defaultColors = {};
+const colorTemplates = JSON.parse(document.querySelector('#color-template-data').textContent);
+const defaultColorTemplate = colorTemplates.templates.find(template => template.id === colorTemplates.default_id);
+const defaultColors = { ...defaultColorTemplate.colors };
+const resetColorsButton = document.querySelector('#reset-colors');
+const colorResetMessage = document.querySelector('#color-reset-message');
+const resetColorsSuccessMessage = 'カラーを初期設定に戻して保存しました。';
 const defaultAppearance = {
     input_border_width: 1,
     card_border_width: 1,
@@ -143,28 +148,55 @@ function refreshColorFields() {
         const value = draftColors[key] ?? defaultColors[key];
         inputs.picker.value = value;
         inputs.code.value = value;
-        inputs.code.setCustomValidity('');
+        setColorInputError(key, '');
     }
+    refreshTemplateSelection();
+}
+
+function refreshTemplateSelection() {
+    const current = { ...defaultColors, ...draftColors };
+    for (const button of document.querySelectorAll('[data-color-template]')) {
+        const template = colorTemplates.templates.find(item => item.id === button.dataset.colorTemplate);
+        const selected = Object.keys(defaultColors).every(key => current[key].toUpperCase() === template.colors[key]);
+        button.setAttribute('aria-pressed', String(selected));
+        button.querySelector('[data-template-status]').textContent = selected ? '選択中' : '';
+    }
+}
+
+function setColorInputError(key, text) {
+    const { code, error } = colorInputs.get(key);
+    code.setCustomValidity(text);
+    code.setAttribute('aria-invalid', String(text !== ''));
+    error.textContent = text;
+    if (text) colorsMessage.textContent = text;
 }
 
 function previewColor(key, value) {
     if (!settingsReady) return;
+    // 不正な入力も「変更を取り消す」で戻せるよう、検証より先に記録する。
+    rememberSettingsBeforeEditing();
     const { picker, code } = colorInputs.get(key);
     if (!isHexColor(value)) {
-        code.setCustomValidity('#から始まる6桁のカラーコードを入力してください。');
+        setColorInputError(key, '#から始まる6桁のカラーコードを入力してください。');
         return;
     }
-    code.setCustomValidity('');
     const color = value.toUpperCase();
     picker.value = color;
     code.value = color;
-    rememberSettingsBeforeEditing();
+    try {
+        paletteFormat.normalizeColors({ ...draftColors, [key]: color }, defaultColors);
+    } catch (error) {
+        setColorInputError(key, error.message);
+        return;
+    }
+    setColorInputError(key, '');
     if (color === defaultColors[key]) {
         delete draftColors[key];
     } else {
         draftColors[key] = color;
     }
     applyColors(draftColors);
+    refreshTemplateSelection();
     refreshPaletteExport();
     scheduleSettingsSave();
 }
@@ -173,6 +205,7 @@ function setColorControlsDisabled(disabled) {
     for (const control of colorsForm.querySelectorAll('input, select, textarea, button')) {
         control.disabled = disabled;
     }
+    resetColorsButton.disabled = disabled;
 }
 
 function rememberSettingsBeforeEditing() {
@@ -227,6 +260,7 @@ function resetUserColors() {
     paletteImport.value = '';
     paletteMessage.textContent = '';
     colorsMessage.textContent = '';
+    colorResetMessage.textContent = '';
     setColorControlsDisabled(true);
 }
 
@@ -241,7 +275,14 @@ async function loadUserColors(userId) {
     const requestId = colorsRequestId;
     const result = await requestJson('/api/colors.php', { cache: 'no-store' });
     if (requestId !== colorsRequestId) return;
-    savedColors = result.data.colors;
+    let recoveredColors = false;
+    try {
+        savedColors = paletteFormat.normalizeColors(result.data.colors, defaultColors);
+    } catch {
+        // 旧バージョンで同色を保存していても、設定画面から復旧できるようにする。
+        savedColors = {};
+        recoveredColors = true;
+    }
     savedAppearance = result.data.appearance ?? {};
     draftColors = { ...(cached?.pending ? cached.colors : savedColors) };
     draftAppearance = { ...(cached?.pending ? cached.appearance : savedAppearance) };
@@ -266,17 +307,23 @@ async function loadUserColors(userId) {
             if (isLatest) {
                 cacheSettings({ colors: savedColors, appearance: savedAppearance }, false);
                 colorsMessage.textContent = successMessage;
+                colorResetMessage.textContent = successMessage === resetColorsSuccessMessage ? '初期配色に戻しました。' : '';
             }
         },
         onError: (error, isLatest) => {
             if (isLatest) colorsMessage.textContent = `${error.message}「今すぐ保存」で再試行できます。`;
+            if (isLatest && colorResetMessage.textContent) {
+                colorResetMessage.textContent = '初期配色を表示しています。保存に失敗したため、もう一度ボタンを押して保存してください。';
+            }
         },
     });
     if (cached?.pending) {
         scheduleSettingsSave(true);
     } else {
         cacheSettings({ colors: savedColors, appearance: savedAppearance }, false);
-        colorsMessage.textContent = '保存済みの設定を読み込みました。';
+        colorsMessage.textContent = recoveredColors
+            ? '保存済みの配色を安全に表示できないため、初期配色で表示しています。配色ページの「カラーを初期設定に戻す」で保存できます。'
+            : '保存済みの設定を読み込みました。';
     }
 }
 
@@ -286,15 +333,22 @@ function scheduleSettingsSave(immediate = false, successMessage = 'アカウン�
         colorsMessage.textContent = '未保存の入力があります。カラーコードや枠の太さを確認してください。';
         return;
     }
+    return queueSettingsSave(immediate, successMessage);
+}
+
+// draftには検証済みの値だけが入る。配色の復旧は別項目の不正な入力があっても保存できる。
+function queueSettingsSave(immediate, successMessage) {
+    if (!settingsReady) return;
     const settings = { colors: { ...draftColors }, appearance: { ...draftAppearance } };
     cacheSettings(settings, true);
     colorsMessage.textContent = '自動保存を待っています。';
+    colorResetMessage.textContent = successMessage === resetColorsSuccessMessage ? '初期配色を保存しています。' : '';
     return settingsSaveQueue.schedule(settings, successMessage, immediate);
 }
 
 function showSettingsCategory(category) {
     const descriptions = {
-        colors: ['配色', '背景・ボタン・文字などの色を変更できます。変更はアカウントに自動保存されます。'],
+        colors: ['配色', '背景・ボタン・文字などの色を変更できます。文字色と背景色は、RGB各値の差の絶対値の合計が10以上になるように指定してください。変更はアカウントに自動保存されます。'],
         effects: ['枠・効果', '枠の太さ、背景ブラー、影を設定できます。変更は自動保存されます。'],
         fonts: ['フォント', '書体を選ぶとサイト全体に反映され、自動保存されます。'],
         sharing: ['カラーの共有', '配色を文字列で共有し、インポートできます。'],
@@ -316,7 +370,6 @@ function refreshPaletteExport() {
 }
 
 function buildColorFields() {
-    const defaultStyle = getComputedStyle(document.documentElement);
     for (const [heading, fields] of colorGroups) {
         const group = document.createElement('fieldset');
         group.className = 'rounded-2xl border border-line bg-card p-5 shadow-sm';
@@ -326,12 +379,6 @@ function buildColorFields() {
         const grid = document.createElement('div');
         grid.className = 'grid grid-cols-1 gap-5 sm:grid-cols-2';
         for (const [key, labelText] of fields) {
-            let defaultColor = defaultStyle.getPropertyValue(`--theme-${key}`).trim().toUpperCase();
-            // CSSのビルドで #FFFFFF が #fff に短縮されても、入力欄は6桁に揃える。
-            if (/^#[0-9A-F]{3}$/.test(defaultColor)) {
-                defaultColor = '#' + [...defaultColor.slice(1)].map((digit) => digit + digit).join('');
-            }
-            defaultColors[key] = defaultColor;
             const field = document.createElement('div');
             const label = document.createElement('label');
             label.className = 'mb-2 block text-sm font-semibold';
@@ -352,11 +399,16 @@ function buildColorFields() {
             code.pattern = '#[0-9A-Fa-f]{6}';
             code.required = true;
             code.spellcheck = false;
-            colorInputs.set(key, { picker, code });
+            const error = document.createElement('p');
+            error.id = `color-${key}-error`;
+            error.className = 'mt-1 text-xs font-semibold';
+            error.setAttribute('role', 'status');
+            code.setAttribute('aria-describedby', error.id);
+            colorInputs.set(key, { picker, code, error });
             picker.addEventListener('input', () => previewColor(key, picker.value));
             code.addEventListener('input', () => previewColor(key, code.value));
             controls.append(picker, code);
-            field.append(label, controls);
+            field.append(label, controls, error);
             grid.append(field);
         }
         group.append(legend, grid);
@@ -383,6 +435,7 @@ colorsForm.addEventListener('submit', (event) => {
 
 document.querySelector('#cancel-colors').addEventListener('click', () => {
     if (!undoSettings) {
+        refreshSettingsFields();
         colorsMessage.textContent = '取り消す変更はありません。';
         return;
     }
@@ -395,15 +448,23 @@ document.querySelector('#cancel-colors').addEventListener('click', () => {
     scheduleSettingsSave(true, '変更前の設定に戻して保存しました。');
 });
 
-document.querySelector('#reset-colors').addEventListener('click', () => {
+function applyColorTemplate(templateId, isReset = false) {
+    if (!settingsReady) return;
+    const template = colorTemplates.templates.find(item => item.id === templateId);
+    if (!template) return;
     rememberSettingsBeforeEditing();
-    draftColors = {};
-    draftAppearance = {};
-    applyColors({});
-    applyAppearance({});
-    refreshSettingsFields();
-    scheduleSettingsSave(true, '初期設定に戻して保存しました。');
-});
+    draftColors = template.id === colorTemplates.default_id ? {}
+        : paletteFormat.normalizeColors(template.colors, defaultColors, true);
+    applyColors(draftColors);
+    refreshColorFields();
+    refreshPaletteExport();
+    queueSettingsSave(true, isReset ? resetColorsSuccessMessage : `${template.name}の配色を保存しました。`);
+}
+
+resetColorsButton.addEventListener('click', () => applyColorTemplate(colorTemplates.default_id, true));
+for (const button of document.querySelectorAll('[data-color-template]')) {
+    button.addEventListener('click', () => applyColorTemplate(button.dataset.colorTemplate));
+}
 
 document.querySelector('#copy-palette').addEventListener('click', async () => {
     if (![...colorInputs.values()].every(({ code }) => code.checkValidity())) {

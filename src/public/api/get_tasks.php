@@ -27,7 +27,7 @@ if ($userId === null) {
 try {
     /** @var PDO $pdo */
     $pdo = require dirname(__DIR__, 2) . '/app/db.php';
-    $sql = 'SELECT id, title, content, completed, progress, scheduled_at, created_at, updated_at
+    $sql = 'SELECT id, title, content, completed, progress, task_type, starts_at, scheduled_at, created_at, updated_at
             FROM tasks
             WHERE user_id = :user_id AND completed = FALSE
             ORDER BY sort_order ASC, id ASC';

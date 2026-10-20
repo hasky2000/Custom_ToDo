@@ -1,6 +1,7 @@
 /*
  * サイト共通のカラーパレット。
- * 配色を変更するときは、以下の4色を編集して npm run build を実行する。
+ * 初期配色は src/app/color_templates.json から画面に出力する。
+ * 以下はCSSだけで表示する場合の予備の配色。
  */
 :root {
     --color-main: #90A9FD;   /* ヘッダー・主要ボタン・進捗 */
@@ -61,6 +62,127 @@
     border: 0;
 }
 
+.app-header {
+    min-height: 63px;
+}
+
+.header-back {
+    flex-shrink: 0;
+    width: 2rem;
+    height: 2rem;
+    place-items: center;
+    border-radius: 0.25rem;
+}
+
+.header-back:not(.hidden) { display: grid; }
+
+.header-back:hover { background: var(--theme-secondary); }
+
+/* 取り消しと初期化は、狭い画面でも左右に並べる。 */
+.settings-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+}
+
+.color-reset-actions {
+    display: flex;
+    flex: 1 1 20rem;
+    min-width: 0;
+    gap: 0.5rem;
+}
+
+.color-reset-actions #cancel-colors {
+    flex-shrink: 0;
+}
+
+/* 復旧ボタンと結果は、テーマや枠・フォント変更に影響されない固定表示にする。 */
+.color-reset-feedback {
+    padding: 0.5rem;
+    background: #FFFFFF;
+    color: #172033;
+    font: 500 12px/1.5 system-ui, sans-serif;
+}
+
+.color-reset-feedback:empty { display: none; }
+
+.theme-app #reset-colors {
+    flex: 1;
+    min-width: 0;
+    padding: 0.5rem 0.75rem;
+    background: #FFFFFF;
+    color: #172033;
+    border: 2px solid #172033;
+    border-radius: 0.25rem;
+    box-shadow: none;
+    font: 700 13px/1.5 system-ui, sans-serif;
+    cursor: pointer;
+}
+
+.theme-app #reset-colors:hover {
+    background: #E2E8F0;
+}
+
+.theme-app #reset-colors:focus-visible {
+    outline: 3px solid #2563EB;
+    outline-offset: 3px;
+}
+
+.theme-app #reset-colors:disabled {
+    background: #E5E7EB;
+    color: #4B5563;
+    border-color: #6B7280;
+    cursor: wait;
+}
+
+.color-template-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem;
+}
+
+.theme-app .color-template-button {
+    padding: 0.9rem;
+    text-align: left;
+    color: var(--theme-text);
+    background: var(--theme-card);
+    border: 2px solid currentColor;
+    border-radius: 0.25rem;
+}
+
+.color-template-button[aria-pressed='true'] {
+    outline: 3px solid currentColor;
+    outline-offset: 2px;
+}
+
+.color-template-name {
+    display: block;
+    font-weight: 700;
+}
+
+.color-template-note {
+    display: block;
+    min-height: 1.25rem;
+    font-size: 0.75rem;
+}
+
+.color-template-swatches {
+    display: flex;
+    gap: 0.4rem;
+    margin: 0.5rem 0;
+}
+
+.color-template-swatches span {
+    width: 1.25rem;
+    height: 1.25rem;
+    border: 1px solid currentColor;
+    border-radius: 50%;
+    background: var(--template-primary);
+}
+
+.color-template-swatches span:nth-child(2) { background: var(--template-secondary); }
+.color-template-swatches span:nth-child(3) { background: var(--template-text); }
+
 [data-blur-enabled='true'] .theme-app :is(header, .main-navigation),
 [data-blur-enabled='true'] dialog::backdrop {
     -webkit-backdrop-filter: blur(12px);
@@ -98,6 +220,50 @@ a:focus-visible,
 summary:focus-visible {
     outline: 2px solid var(--theme-text);
     outline-offset: 3px;
+}
+
+.task-submit-button:disabled {
+    background-color: #E5E7EB;
+    color: #6B7280;
+    cursor: not-allowed;
+}
+
+.task-kind {
+    display: inline-block;
+    margin-top: 0.4rem;
+    padding: 0.15rem 0.6rem;
+    border: 1px solid currentColor;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.task-kind[data-type='unscheduled'] {
+    border-style: dashed;
+}
+
+.task-kind[data-type='period'] {
+    border-width: 3px;
+    border-style: double;
+}
+
+.task-timing {
+    margin-top: 0.5rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    overflow-wrap: anywhere;
+}
+
+.task-timing[data-status='overdue'] {
+    border-left: 3px solid currentColor;
+    padding-left: 0.5rem;
+    font-weight: 800;
+}
+
+.task-dates {
+    margin-top: 0.35rem;
+    font-size: 0.75rem;
+    overflow-wrap: anywhere;
 }
 
 summary::-webkit-details-marker {

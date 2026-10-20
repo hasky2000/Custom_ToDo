@@ -1,19 +1,31 @@
 <?php
 // 画面・CSS・JavaScriptの更新が別々にキャッシュされないようにする。
 header('Cache-Control: no-cache');
+require_once dirname(__DIR__) . '/app/color_templates.php';
+$colorTemplates = colorTemplateCatalog();
+$defaultColorTemplate = defaultColorTemplate();
 $appScriptVersion = filemtime(__DIR__ . '/assets/app.js');
 $appStyleVersion = filemtime(__DIR__ . '/assets/app.css');
 $colorScriptVersion = filemtime(__DIR__ . '/assets/colors.js');
 $paletteScriptVersion = filemtime(__DIR__ . '/assets/palette-format.js');
 $queueScriptVersion = filemtime(__DIR__ . '/assets/settings-save-queue.js');
+$scheduleScriptVersion = filemtime(__DIR__ . '/assets/task-schedule.js');
 ?>
 <!doctype html>
 <html lang="ja" class="initializing">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="theme-color" content="#90A9FD">
+    <meta name="theme-color" content="<?= $defaultColorTemplate['colors']['header'] ?>">
     <link rel="stylesheet" href="/assets/app.css?v=<?= $appStyleVersion ?>">
+    <style id="default-color-palette">
+        :root {
+            <?php foreach ($defaultColorTemplate['colors'] as $key => $color): ?>
+            --theme-<?= $key ?>: <?= $color ?>;
+            <?php endforeach; ?>
+        }
+    </style>
+    <script id="color-template-data" type="application/json"><?= json_encode($colorTemplates, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_THROW_ON_ERROR) ?></script>
     <title>Custom ToDo</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -52,6 +64,7 @@ $queueScriptVersion = filemtime(__DIR__ . '/assets/settings-save-queue.js');
     <script src="/assets/palette-format.js?v=<?= $paletteScriptVersion ?>" defer></script>
     <script src="/assets/settings-save-queue.js?v=<?= $queueScriptVersion ?>" defer></script>
     <script src="/assets/colors.js?v=<?= $colorScriptVersion ?>" defer></script>
+    <script src="/assets/task-schedule.js?v=<?= $scheduleScriptVersion ?>" defer></script>
     <script src="/assets/app.js?v=<?= $appScriptVersion ?>" defer></script>
 </head>
 <body class="theme-app min-h-screen bg-page font-sans text-ink">
@@ -105,30 +118,28 @@ $queueScriptVersion = filemtime(__DIR__ . '/assets/settings-save-queue.js');
     </section>
 
     <div id="app-shell" class="mx-auto hidden min-h-screen max-w-lg bg-surface shadow-xl">
-        <header class="sticky top-0 z-20 flex items-center justify-between border-b border-line bg-header px-5 py-4">
-            <div>
-                <p class="text-xs font-semibold uppercase tracking-[0.22em] text-ink">Custom ToDo</p>
-                <h1 id="page-title" class="mt-1 text-2xl font-bold">今日のタスク</h1>
-            </div>
-            <div class="text-right">
-                <p id="current-user-email" class="max-w-40 truncate text-xs text-ink"></p>
-            </div>
-        </header>
+        <div id="app-topbar" class="sticky top-0 z-20">
+            <header class="app-header flex items-center justify-between gap-3 border-b border-line bg-header px-4 py-3">
+                <a id="header-back" href="#my" class="header-back hidden" aria-label="マイページに戻る">
+                    <svg class="size-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m14 6-6 6 6 6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </a>
+                <h1 id="page-title" class="min-w-0 flex-1 text-xl font-bold leading-tight">TODOリスト</h1>
+                <p id="current-user-email" class="max-w-[45%] self-start truncate text-right text-xs leading-tight text-ink"></p>
+            </header>
+        </div>
 
         <main class="px-5 pb-36 pt-6">
             <p id="message" class="mb-4 min-h-6 text-sm" role="status"></p>
 
-            <section id="todo-page" aria-labelledby="task-list-heading">
-                <div class="mb-4 flex items-end justify-between">
-                    <h2 id="task-list-heading" class="text-lg font-bold">TODOリスト</h2>
-                    <span id="task-count" class="text-sm text-ink"></span>
+            <section id="todo-page" aria-labelledby="page-title">
+                <div class="mb-4 flex items-start justify-between gap-3">
+                    <p id="task-order-help" class="min-w-0 flex-1 text-sm text-ink">締切日ごとに表示します。同じ日付の中でドラッグして並べ替えできます。</p>
+                    <span id="task-count" class="shrink-0 text-sm text-ink"></span>
                 </div>
-                <p id="task-order-help" class="mb-4 text-sm text-ink">右側のハンドルをドラッグして並べ替えできます。</p>
-                <ul id="task-list" class="space-y-4"></ul>
+                <div id="task-list" class="space-y-6"></div>
             </section>
 
             <section id="archive-page" class="hidden space-y-6" aria-labelledby="completed-list-heading">
-                <a href="#my" class="inline-block rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-secondary-ink">← マイページに戻る</a>
                 <div class="space-y-4 rounded-2xl border border-line bg-card p-5 shadow-sm">
                     <div>
                         <label for="archive-search" class="block text-sm font-semibold">タスクを検索</label>
@@ -157,7 +168,6 @@ $queueScriptVersion = filemtime(__DIR__ . '/assets/settings-save-queue.js');
             </section>
 
             <section id="settings-page" class="hidden space-y-6" aria-label="設定">
-                <a href="#my" class="inline-block rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-secondary-ink">← マイページに戻る</a>
                 <div>
                     <h2 class="text-lg font-bold">設定のカテゴリ</h2>
                     <p class="mt-2 text-sm leading-6">変更した設定はアカウントに自動保存されます。</p>
@@ -172,7 +182,6 @@ $queueScriptVersion = filemtime(__DIR__ . '/assets/settings-save-queue.js');
             </section>
 
             <section id="settings-detail-page" class="hidden space-y-6" aria-label="カテゴリ別の設定">
-                <a href="#settings" class="inline-block rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-secondary-ink">← 設定のカテゴリに戻る</a>
                 <div>
                     <h2 id="settings-category-title" class="text-lg font-bold"></h2>
                     <p id="settings-category-description" class="mt-2 text-sm leading-6"></p>
@@ -182,7 +191,7 @@ $queueScriptVersion = filemtime(__DIR__ . '/assets/settings-save-queue.js');
                     <div class="space-y-3 p-5">
                         <p class="text-sm">カード・文字・ボタンの見た目を確認できます。</p>
                         <label for="appearance-preview-input" class="block text-sm font-semibold">入力欄のプレビュー</label>
-                        <input id="appearance-preview-input" type="text" value="Custom ToDo — 今日のタスク" readonly
+                        <input id="appearance-preview-input" type="text" value="Custom ToDo — TODOリスト" readonly
                             class="w-full rounded-lg border border-line bg-field px-3 py-2">
                         <div class="flex flex-wrap gap-2">
                             <span class="appearance-preview-button rounded-lg bg-main px-4 py-2 text-sm font-semibold text-primary-ink">メインボタン</span>
@@ -246,6 +255,24 @@ $queueScriptVersion = filemtime(__DIR__ . '/assets/settings-save-queue.js');
                             </select>
                         </div>
                     </fieldset>
+                    <section data-settings-category="colors" class="space-y-3" aria-label="配色テンプレート">
+                        <h3 class="font-bold">配色テンプレート</h3>
+                        <p class="text-sm">選ぶと配色を切り替えて自動保存します。フォントや枠の設定は保持します。</p>
+                        <div class="color-template-grid">
+                            <?php foreach ($colorTemplates['templates'] as $template): ?>
+                            <button type="button" class="color-template-button" data-color-template="<?= $template['id'] ?>" aria-pressed="false"
+                                aria-label="<?= htmlspecialchars($template['name'], ENT_QUOTES, 'UTF-8') ?>の配色を適用"
+                                style="--template-text: <?= $template['colors']['text'] ?>; --template-primary: <?= $template['colors']['primary'] ?>; --template-secondary: <?= $template['colors']['secondary'] ?>;">
+                                <span class="color-template-name"><?= htmlspecialchars($template['name'], ENT_QUOTES, 'UTF-8') ?></span>
+                                <?php if ($template['id'] === $colorTemplates['default_id']): ?>
+                                <span class="color-template-note">初期配色</span>
+                                <?php endif; ?>
+                                <span class="color-template-swatches" aria-hidden="true"><span></span><span></span><span></span></span>
+                                <span data-template-status class="color-template-note"></span>
+                            </button>
+                            <?php endforeach; ?>
+                        </div>
+                    </section>
                     <div id="color-fields" data-settings-category="colors" class="space-y-6"></div>
                     <section data-settings-category="sharing" class="space-y-6" aria-label="カラーの共有">
                         <div class="space-y-3 rounded-2xl border border-line bg-card p-5 shadow-sm">
@@ -265,11 +292,14 @@ $queueScriptVersion = filemtime(__DIR__ . '/assets/settings-save-queue.js');
                         <p id="palette-message" class="min-h-6 text-sm font-semibold" role="status"></p>
                     </section>
                     <p id="colors-message" class="min-h-6 text-sm font-semibold" role="status"></p>
-                    <div class="flex flex-wrap gap-3">
+                    <div class="settings-actions">
                         <button type="submit" class="rounded-lg bg-main px-4 py-3 text-sm font-semibold text-primary-ink disabled:opacity-50">今すぐ保存</button>
-                        <button id="cancel-colors" type="button" class="rounded-lg bg-accent px-4 py-3 text-sm font-semibold text-secondary-ink disabled:opacity-50">変更を取り消す</button>
-                        <button id="reset-colors" type="button" class="rounded-lg border border-line px-4 py-3 text-sm font-semibold disabled:opacity-50">初期設定に戻す</button>
+                        <div class="color-reset-actions">
+                            <button id="cancel-colors" type="button" class="rounded-lg bg-accent px-4 py-3 text-sm font-semibold text-secondary-ink disabled:opacity-50">変更を取り消す</button>
+                            <button id="reset-colors" data-settings-category="colors" type="button" disabled>カラーを初期設定に戻す</button>
+                        </div>
                     </div>
+                    <p id="color-reset-message" data-settings-category="colors" class="color-reset-feedback" role="status"></p>
                 </form>
                 <section data-settings-category="account" class="rounded-2xl border border-line bg-card p-5 shadow-sm" aria-label="アカウント情報">
                     <p class="text-xs font-semibold">ログイン中のアカウント</p>
@@ -279,8 +309,7 @@ $queueScriptVersion = filemtime(__DIR__ . '/assets/settings-save-queue.js');
             </section>
 
             <section id="debug-page" class="hidden space-y-6" aria-label="デバッグ情報">
-                <div class="flex flex-wrap items-center justify-between gap-3">
-                    <a href="#my" class="inline-block rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-secondary-ink">← マイページに戻る</a>
+                <div class="flex justify-end">
                     <button id="refresh-debug" type="button" class="rounded-lg bg-main px-4 py-2 text-sm font-semibold text-primary-ink disabled:opacity-50">情報を更新</button>
                 </div>
                 <p class="text-sm leading-6 text-ink">ログイン中のアカウントのデータを表示します。パスワードは一方向ハッシュで保存されているため、保存済みハッシュを表示します。</p>
@@ -312,7 +341,7 @@ $queueScriptVersion = filemtime(__DIR__ . '/assets/settings-save-queue.js');
     </div>
 
     <dialog id="task-dialog" class="w-[calc(100%-2rem)] max-w-md rounded-2xl bg-card p-0 text-ink shadow-2xl">
-        <form id="task-form" class="space-y-4 p-6">
+        <form id="task-form" class="space-y-4 p-6" novalidate>
             <div class="flex items-center justify-between">
                 <h2 class="text-xl font-bold">新しいTODO</h2>
                 <button id="close-task-form" type="button" aria-label="閉じる"
@@ -321,7 +350,7 @@ $queueScriptVersion = filemtime(__DIR__ . '/assets/settings-save-queue.js');
 
             <div>
                 <label for="title" class="block font-medium">タイトル</label>
-                <input id="title" name="title" type="text" required maxlength="255"
+                <input id="title" name="title" type="text" required maxlength="255" aria-describedby="task-form-message"
                     class="mt-1 w-full rounded-lg border border-line bg-field px-3 py-2 focus:border-main focus:outline-none focus:ring-2 focus:ring-accent">
             </div>
 
@@ -332,19 +361,38 @@ $queueScriptVersion = filemtime(__DIR__ . '/assets/settings-save-queue.js');
             </div>
 
             <div>
-                <label for="scheduled-at" class="block font-medium">予定日時</label>
-                <input id="scheduled-at" name="scheduled_at" type="datetime-local"
+                <label for="task-type" class="block font-medium">タスクの種類</label>
+                <select id="task-type" name="task_type" aria-describedby="task-type-help"
+                    class="mt-1 w-full rounded-lg border border-line bg-field px-3 py-2">
+                    <option value="unscheduled">日時なし</option>
+                    <option value="deadline">期限のみ</option>
+                    <option value="period">開始・終了あり</option>
+                </select>
+                <p id="task-type-help" data-task-type-help class="mt-1 text-xs">開始・締切を指定せずに登録します。</p>
+            </div>
+
+            <div data-start-field hidden>
+                <label for="starts-at" class="block font-medium">開始日時</label>
+                <input id="starts-at" name="starts_at" type="datetime-local" disabled aria-describedby="task-form-message"
                     class="mt-1 w-full rounded-lg border border-line bg-field px-3 py-2 focus:border-main focus:outline-none focus:ring-2 focus:ring-accent">
             </div>
 
-            <button type="submit" class="w-full rounded-lg bg-main px-4 py-3 font-semibold text-primary-ink">
+            <div data-deadline-field hidden>
+                <label for="scheduled-at" data-deadline-label class="block font-medium">締切日時</label>
+                <input id="scheduled-at" name="scheduled_at" type="datetime-local" disabled aria-describedby="task-form-message"
+                    class="mt-1 w-full rounded-lg border border-line bg-field px-3 py-2 focus:border-main focus:outline-none focus:ring-2 focus:ring-accent">
+            </div>
+
+            <p id="task-form-message" data-task-form-message class="min-h-6 text-sm font-semibold" role="status">タイトルを入力してください。空白のみでは登録できません。</p>
+
+            <button type="submit" disabled class="task-submit-button w-full rounded-lg bg-main px-4 py-3 font-semibold text-primary-ink">
                 追加する
             </button>
         </form>
     </dialog>
 
     <dialog id="edit-task-dialog" class="w-[calc(100%-2rem)] max-w-md rounded-2xl bg-card p-0 text-ink shadow-2xl">
-        <form id="edit-task-form" class="space-y-4 p-6">
+        <form id="edit-task-form" class="space-y-4 p-6" novalidate>
             <div class="flex items-center justify-between">
                 <h2 class="text-xl font-bold">TODOを編集</h2>
                 <button id="close-edit-task-form" type="button" aria-label="閉じる"
@@ -355,7 +403,7 @@ $queueScriptVersion = filemtime(__DIR__ . '/assets/settings-save-queue.js');
 
             <div>
                 <label for="edit-title" class="block font-medium">タイトル</label>
-                <input id="edit-title" name="title" type="text" required maxlength="255"
+                <input id="edit-title" name="title" type="text" required maxlength="255" aria-describedby="edit-task-form-message"
                     class="mt-1 w-full rounded-lg border border-line bg-field px-3 py-2 focus:border-main focus:outline-none focus:ring-2 focus:ring-accent">
             </div>
 
@@ -366,12 +414,31 @@ $queueScriptVersion = filemtime(__DIR__ . '/assets/settings-save-queue.js');
             </div>
 
             <div>
-                <label for="edit-scheduled-at" class="block font-medium">予定日時</label>
-                <input id="edit-scheduled-at" name="scheduled_at" type="datetime-local"
+                <label for="edit-task-type" class="block font-medium">タスクの種類</label>
+                <select id="edit-task-type" name="task_type" aria-describedby="edit-task-type-help"
+                    class="mt-1 w-full rounded-lg border border-line bg-field px-3 py-2">
+                    <option value="unscheduled">日時なし</option>
+                    <option value="deadline">期限のみ</option>
+                    <option value="period">開始・終了あり</option>
+                </select>
+                <p id="edit-task-type-help" data-task-type-help class="mt-1 text-xs">開始・締切を指定せずに登録します。</p>
+            </div>
+
+            <div data-start-field hidden>
+                <label for="edit-starts-at" class="block font-medium">開始日時</label>
+                <input id="edit-starts-at" name="starts_at" type="datetime-local" disabled aria-describedby="edit-task-form-message"
                     class="mt-1 w-full rounded-lg border border-line bg-field px-3 py-2 focus:border-main focus:outline-none focus:ring-2 focus:ring-accent">
             </div>
 
-            <button type="submit" class="w-full rounded-lg bg-main px-4 py-3 font-semibold text-primary-ink">
+            <div data-deadline-field hidden>
+                <label for="edit-scheduled-at" data-deadline-label class="block font-medium">締切日時</label>
+                <input id="edit-scheduled-at" name="scheduled_at" type="datetime-local" disabled aria-describedby="edit-task-form-message"
+                    class="mt-1 w-full rounded-lg border border-line bg-field px-3 py-2 focus:border-main focus:outline-none focus:ring-2 focus:ring-accent">
+            </div>
+
+            <p id="edit-task-form-message" data-task-form-message class="min-h-6 text-sm font-semibold" role="status"></p>
+
+            <button type="submit" class="task-submit-button w-full rounded-lg bg-main px-4 py-3 font-semibold text-primary-ink">
                 変更を保存
             </button>
         </form>
