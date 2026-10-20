@@ -1,5 +1,10 @@
 # Custom ToDo
 
+## 引き継ぎ・Windowsでの開発
+
+[引き継ぎ資料](docs/HANDOVER.md)に、環境一覧、Windows（WSL2＋Docker Desktop）での構築手順、テスト、トラブル対応をまとめています。
+共同開発者のAIには、この資料の「最初にAIへ渡す依頼文」とリポジトリを渡してください。
+
 ## 環境構築
 
 Docker、Docker Composeが使える環境で、以下を実行します。
