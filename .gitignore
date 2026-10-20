@@ -1,2 +1,20 @@
+# npmでインストールする依存パッケージ
 node_modules/
+
+# 個人の環境設定・認証情報（共有用のひな形は管理する）
 .env
+.env.*
+!.env.example
+
+# エディターの個人設定
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OSが作成するファイル
+.DS_Store
+Thumbs.db
+
+# 実行ログ
+*.log
