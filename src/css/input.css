@@ -41,8 +41,22 @@
     visibility: hidden;
 }
 
+/* 標準のログイン内容（514px）の中央配置を基準に、両フォームの上端を揃える。 */
+#auth-view {
+    padding-top: max(3rem, calc((100vh - 32.125rem) / 2));
+}
+
 .theme-app :is(input, textarea, select).border-line {
     border-width: var(--appearance-input-border-width);
+}
+
+/* 認証画面の入力枠は2pxにし、未フォーカス時は青成分だけ5下げる。 */
+.theme-app #auth-view input.border-line {
+    border-width: 2px;
+}
+
+.theme-app #auth-view input.border-line:not(:focus) {
+    border-color: rgb(from var(--theme-border) r g calc(b - 5));
 }
 
 .theme-app .border.border-line:not(input):not(textarea):not(select):not(button) {

@@ -1,39 +1,80 @@
 # Custom ToDo
 
-## 引き継ぎ・Windowsでの開発
+授業内のアプリ開発実習で作成するTODOアプリです。Docker Composeを使って、PHP、PostgreSQL、CSSビルド環境をまとめて起動します。
 
-[引き継ぎ資料](docs/HANDOVER.md)に、環境一覧、Windows（WSL2＋Docker Desktop）での構築手順、テスト、トラブル対応をまとめています。
-共同開発者のAIには、この資料の「最初にAIへ渡す依頼文」とリポジトリを渡してください。
+## 必要なもの
 
-## 環境構築
+- Docker Desktop（Windowsの場合はWSL2バックエンドを有効にしたUbuntu環境）
+- Docker Compose v2（`docker compose` コマンド）
+- Git
 
-Docker、Docker Composeが使える環境で、以下を実行します。
+## インストール
 
-1. 環境設定のひな形をコピーします。
+1. リポジトリを取得し、プロジェクトのディレクトリへ移動します。
+
+   ```sh
+   git clone <リポジトリURL>
+   cd Custom_ToDo
+   ```
+
+2. 環境設定ファイルを作成します。
 
    ```sh
    cp .env.example .env
    ```
 
-2. `.env` の `POSTGRES_PASSWORD` を任意のパスワードに変更します。
-3. CSSのビルドに必要な依存パッケージをインストールします。
+3. `.env` を開き、`POSTGRES_PASSWORD` を任意の値に変更します。`.env.example` の値はローカル開発用の初期値です。
+
+4. CSSのビルドに使う依存パッケージをインストールします。
 
    ```sh
    docker compose run --rm --no-deps node npm ci
    ```
 
-4. アプリを起動します。
+## 起動
 
-   ```sh
-   docker compose up -d --build
-   ```
+プロジェクトのディレクトリで次のコマンドを実行します。
 
-ブラウザーで http://localhost:8080 を開きます。
+```sh
+docker compose up -d --build
+```
 
-## Gitで管理するファイル
+起動後、ブラウザーで [http://localhost:8080](http://localhost:8080) を開きます。初回起動時はデータベースの初期化に少し時間がかかることがあります。
 
-`.env`、`node_modules/`、エディターの個人設定、ログはコミット対象から除外しています。
-環境変数を追加した場合は、秘密情報を含めずに `.env.example` も更新してください。
+## 停止・再起動
 
-`package-lock.json` とデータベースの初期化SQLは、環境を再現するために管理します。
-`src/public/assets/app.css` も、初期表示に必要なCSSとして管理します。
+コンテナを停止して削除するには、次のコマンドを実行します。
+
+```sh
+docker compose down
+```
+
+再び起動する場合は、起動コマンドを実行します。
+
+```sh
+docker compose up -d
+```
+
+データベースの内容はDockerのボリュームに保存されるため、`docker compose down` では削除されません。
+
+## 開発用コマンド
+
+ログを確認します。
+
+```sh
+docker compose logs -f
+```
+
+CSSを本番向けにビルドします。
+
+```sh
+docker compose run --rm --no-deps node npm run build
+```
+
+## 使用する主な構成
+
+- PHP 8.4 と Apache
+- PostgreSQL 17
+- Node.js 22 と Tailwind CSS 4
+
+Webサーバーはホスト側の8080番ポートで待ち受けます。別のアプリが同じポートを使用している場合は、`compose.yaml` のポート設定を変更してください。

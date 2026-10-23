@@ -68,7 +68,7 @@ $scheduleScriptVersion = filemtime(__DIR__ . '/assets/task-schedule.js');
     <script src="/assets/app.js?v=<?= $appScriptVersion ?>" defer></script>
 </head>
 <body class="theme-app min-h-screen bg-page font-sans text-ink">
-    <section id="auth-view" class="mx-auto flex min-h-screen max-w-lg items-center bg-surface px-6 py-12 shadow-xl">
+    <section id="auth-view" class="mx-auto flex min-h-screen max-w-lg items-start bg-surface px-6 py-12 shadow-xl">
         <div class="w-full">
             <p class="text-xs font-semibold uppercase tracking-[0.22em] text-ink">Custom ToDo</p>
             <h1 class="mt-2 text-3xl font-bold">おかえりなさい</h1>
