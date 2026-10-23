@@ -32,9 +32,6 @@ const archiveDate = document.querySelector('#archive-date');
 const clearArchiveFiltersButton = document.querySelector('#clear-archive-filters');
 const registerPassword = document.querySelector('#register-password');
 const registerPasswordConfirmation = document.querySelector('#register-password-confirmation');
-const debugPage = document.querySelector('#debug-page');
-const debugContent = document.querySelector('#debug-content');
-const refreshDebugButton = document.querySelector('#refresh-debug');
 const settingsPage = document.querySelector('#settings-page');
 const settingsDetailPage = document.querySelector('#settings-detail-page');
 let completedTasks = [];
@@ -76,12 +73,11 @@ function showPage(page) {
     todoPage.classList.toggle('hidden', !isTodoPage);
     myPage.classList.toggle('hidden', page !== 'my');
     archivePage.classList.toggle('hidden', page !== 'archive');
-    debugPage.classList.toggle('hidden', page !== 'debug');
     settingsPage.classList.toggle('hidden', page !== 'settings');
     settingsDetailPage.classList.toggle('hidden', page !== 'settings-detail');
     openTaskFormButton.classList.toggle('hidden', !isTodoPage);
-    pageTitle.textContent = { todo: 'TODOリスト', my: 'マイページ', archive: 'アーカイブ', debug: 'デバッグ', settings: '設定', 'settings-detail': '設定' }[page];
-    const backPage = { archive: 'my', debug: 'my', settings: 'my', 'settings-detail': 'settings' }[page];
+    pageTitle.textContent = { todo: 'TODOリスト', my: 'マイページ', archive: 'アーカイブ', settings: '設定', 'settings-detail': '設定' }[page];
+    const backPage = { archive: 'my', settings: 'my', 'settings-detail': 'settings' }[page];
     headerBack.classList.toggle('hidden', !backPage);
     headerBack.href = `#${backPage ?? 'todo'}`;
     headerBack.setAttribute('aria-label', backPage === 'settings' ? '設定に戻る' : 'マイページに戻る');
@@ -939,12 +935,10 @@ async function activateCurrentPage() {
         showPage('settings-detail');
         showSettingsCategory(category);
     } else {
-        showPage(['todo', 'my', 'archive', 'debug', 'settings'].includes(route) ? route : 'todo');
+        showPage(['todo', 'my', 'archive', 'settings'].includes(route) ? route : 'todo');
     }
     if (currentPage === 'archive') {
         await openArchivePage();
-    } else if (currentPage === 'debug') {
-        await openDebugPage();
     }
 }
 window.addEventListener('hashchange', activateCurrentPage);
@@ -967,123 +961,6 @@ async function openArchivePage() {
     }
 }
 
-function formatDebugDate(value) {
-    const date = parseDatabaseDate(value);
-    return Number.isNaN(date.getTime()) ? '未記録'
-        : date.toLocaleString('ja-JP', { dateStyle: 'medium', timeStyle: 'medium' });
-}
-
-function appendDebugSection(title, rows) {
-    const section = document.createElement('section');
-    section.className = 'rounded-2xl border border-line bg-card p-5 shadow-sm';
-    const heading = document.createElement('h2');
-    heading.className = 'mb-4 text-lg font-bold';
-    heading.textContent = title;
-    const list = document.createElement('dl');
-    list.className = 'space-y-4 text-sm';
-    for (const [label, value] of rows) {
-        const row = document.createElement('div');
-        const term = document.createElement('dt');
-        term.className = 'text-xs font-semibold text-ink';
-        term.textContent = label;
-        const description = document.createElement('dd');
-        description.className = 'mt-1 whitespace-pre-wrap break-all';
-        description.textContent = String(value);
-        row.append(term, description);
-        list.append(row);
-    }
-    section.append(heading, list);
-    debugContent.append(section);
-}
-
-function renderDebugData(data) {
-    debugContent.replaceChildren();
-    const { account, password, session, task_summary: summary, runtime } = data;
-    const cookie = session.cookie_settings;
-    appendDebugSection('アカウント', [
-        ['ユーザーID', account.id],
-        ['メールアドレス', account.email],
-        ['アカウント作成日時', formatDebugDate(account.created_at)],
-        ['保存済みパスワードハッシュ', account.password_hash ?? '旧不具合の影響が疑われるため非表示'],
-        ['パスワードの保存状態', password.requires_reset ? '旧不具合の影響が疑われます。パスワードの再設定が必要です。' : '入力パスワードのハッシュを保存'],
-        ['ハッシュ方式', password.algorithm],
-        ['ハッシュのパラメーター', JSON.stringify(password.parameters)],
-        ['ログイン時の検証関数', password.verification_function],
-        ['ハッシュの再生成', password.requires_rehash ? '必要' : '不要'],
-    ]);
-    const methods = { password: 'パスワードでログイン', registration: '新規登録' };
-    appendDebugSection('ログイン・セッション', [
-        ['認証方法', methods[session.authentication_method] ?? '未記録'],
-        ['認証日時', formatDebugDate(session.authenticated_at)],
-        ['ログイン時のパスワード照合', session.password_verified ? '成功' : 'このセッションに照合記録なし'],
-        ['パスワード照合日時', formatDebugDate(session.password_verified_at)],
-        ['セッション名', session.name],
-        ['Cookieの有効期間', cookie.lifetime === 0 ? 'ブラウザ終了まで' : `${cookie.lifetime}秒`],
-        ['Cookie設定', `HttpOnly: ${cookie.httponly} / Secure: ${cookie.secure} / SameSite: ${cookie.samesite}`],
-    ]);
-    appendDebugSection('タスク', [
-        ['全タスク', `${summary.total}件`],
-        ['未完了', `${summary.active}件`],
-        ['アーカイブ', `${summary.archived}件`],
-        ['平均進捗', `${summary.average_progress}%`],
-        ['タスクの最終更新', formatDebugDate(summary.last_updated_at)],
-    ]);
-    appendDebugSection('サーバー・データベース', [
-        ['サーバー日時（タイムゾーン付き）', runtime.server_time],
-        ['サーバーのタイムゾーン', runtime.server_timezone],
-        ['PHPバージョン', runtime.php_version],
-        ['DB接続', `${runtime.database_driver} / 接続成功`],
-        ['PostgreSQLバージョン', runtime.database_version],
-        ['DBのタイムゾーン', runtime.database_timezone],
-        ['並び順の保存カラム', runtime.has_sort_order_column ? 'あり' : 'なし'],
-        ['完了日時の保存カラム', runtime.has_completed_at_column ? 'あり' : 'なし'],
-    ]);
-    appendDebugSection('ブラウザ', [
-        ['ページ', `${window.location.pathname}${window.location.hash}`],
-        ['言語', navigator.language],
-        ['タイムゾーン', Intl.DateTimeFormat().resolvedOptions().timeZone],
-        ['画面サイズ', `${window.innerWidth} × ${window.innerHeight}`],
-        ['接続状態', navigator.onLine ? 'オンライン' : 'オフライン'],
-        ['User Agent', navigator.userAgent],
-    ]);
-    const details = document.createElement('details');
-    details.className = 'rounded-2xl border border-line bg-card p-5 shadow-sm';
-    const heading = document.createElement('summary');
-    heading.className = 'cursor-pointer font-semibold';
-    heading.textContent = 'タスクの保存データ（JSON）';
-    const json = document.createElement('pre');
-    json.className = 'mt-4 whitespace-pre-wrap break-all text-xs';
-    json.textContent = JSON.stringify(data.tasks, null, 2);
-    details.append(heading, json);
-    debugContent.append(details);
-}
-
-async function openDebugPage() {
-    const requestId = pageRequestId;
-    debugContent.replaceChildren();
-    refreshDebugButton.disabled = true;
-    showMessage('デバッグ情報を読み込んでいます。');
-    try {
-        const result = await requestJson('/api/debug.php', { cache: 'no-store' });
-        if (requestId !== pageRequestId || appShell.classList.contains('hidden')) {
-            return;
-        }
-        renderDebugData(result.data);
-        showMessage('');
-    } catch (error) {
-        if (requestId === pageRequestId) {
-            showMessage(error.message, true);
-        }
-    } finally {
-        if (requestId === pageRequestId) {
-            refreshDebugButton.disabled = false;
-        }
-    }
-}
-refreshDebugButton.addEventListener('click', () => {
-    pageRequestId++;
-    openDebugPage();
-});
 archiveSearch.addEventListener('input', renderCompletedTasks);
 archiveDate.addEventListener('change', renderCompletedTasks);
 clearArchiveFiltersButton.addEventListener('click', () => {
@@ -1133,7 +1010,6 @@ logoutButton.addEventListener('click', async () => {
         taskList.replaceChildren();
         completedTasks = [];
         completedTaskList.replaceChildren();
-        debugContent.replaceChildren();
         archiveSearch.value = '';
         archiveDate.value = '';
         loginForm.reset();

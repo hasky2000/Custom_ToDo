@@ -65,9 +65,6 @@ try {
     startAppSession();
     session_regenerate_id(true);
     $_SESSION['user_id'] = (int) $user['id'];
-    $_SESSION['authentication_method'] = 'registration';
-    $_SESSION['authenticated_at'] = (new DateTimeImmutable())->format(DateTimeInterface::ATOM);
-    unset($_SESSION['password_verified_at']);
 
     respond(['data' => ['id' => (int) $user['id'], 'email' => $user['email']]], 201);
 } catch (JsonException) {

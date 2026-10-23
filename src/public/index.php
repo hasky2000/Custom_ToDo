@@ -164,7 +164,6 @@ $scheduleScriptVersion = filemtime(__DIR__ . '/assets/task-schedule.js');
             <section id="my-page" class="hidden space-y-6" aria-label="マイページ">
                 <a id="open-archive-page" href="#archive" class="block rounded-2xl border border-line bg-card p-5 font-semibold shadow-sm">アーカイブを見る →</a>
                 <a href="#settings" class="block rounded-2xl border border-line bg-card p-5 font-semibold shadow-sm">設定を開く →</a>
-                <a href="#debug" class="block rounded-2xl border border-line bg-card p-5 font-semibold shadow-sm">デバッグページを見る →</a>
             </section>
 
             <section id="settings-page" class="hidden space-y-6" aria-label="設定">
@@ -308,13 +307,6 @@ $scheduleScriptVersion = filemtime(__DIR__ . '/assets/task-schedule.js');
                 </section>
             </section>
 
-            <section id="debug-page" class="hidden space-y-6" aria-label="デバッグ情報">
-                <div class="flex justify-end">
-                    <button id="refresh-debug" type="button" class="rounded-lg bg-main px-4 py-2 text-sm font-semibold text-primary-ink disabled:opacity-50">情報を更新</button>
-                </div>
-                <p class="text-sm leading-6 text-ink">ログイン中のアカウントのデータを表示します。パスワードは一方向ハッシュで保存されているため、保存済みハッシュを表示します。</p>
-                <div id="debug-content" class="space-y-6" aria-live="polite"></div>
-            </section>
         </main>
 
         <button id="open-task-form" type="button" aria-label="TODOを追加"

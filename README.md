@@ -13,19 +13,19 @@
 1. リポジトリを取得し、プロジェクトのディレクトリへ移動します。
 
    ```sh
-   git clone <リポジトリURL>
+   git clone https://github.com/hasky2000/Custom_ToDo.git
    cd Custom_ToDo
    ```
 
-2. 環境設定ファイルを作成します。
+2. 環境設定ファイルを作成します。以降のコマンドは、Windowsの場合はWSL2のUbuntuで実行してください。
 
    ```sh
-   cp .env.example .env
+   bash scripts/setup-env.sh
    ```
 
-3. `.env` を開き、`POSTGRES_PASSWORD` を任意の値に変更します。`.env.example` の値はローカル開発用の初期値です。
+   `.env.example` を基に `.env` を作成し、DB用パスワードをランダムに生成します。既存の `.env` は上書きしません。
 
-4. CSSのビルドに使う依存パッケージをインストールします。
+3. CSSのビルドに使う依存パッケージをインストールします。
 
    ```sh
    docker compose run --rm --no-deps node npm ci
@@ -77,4 +77,6 @@ docker compose run --rm --no-deps node npm run build
 - PostgreSQL 17
 - Node.js 22 と Tailwind CSS 4
 
-Webサーバーはホスト側の8080番ポートで待ち受けます。別のアプリが同じポートを使用している場合は、`compose.yaml` のポート設定を変更してください。
+Webサーバーはローカルの `127.0.0.1:8080` で待ち受けます。別のアプリが同じポートを使用している場合は、`compose.yaml` のポート設定を変更してください。
+
+`.env` には認証情報が含まれるため、Gitには登録しないでください。既存のDBを使っている場合は、`.env` のパスワードを変更するだけではDB側に反映されません。
