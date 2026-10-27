@@ -73,10 +73,10 @@ docker compose run --rm --no-deps node npm run build
 
 ## 使用する主な構成
 
-- PHP 8.4 と Apache
+- PHP 8.4.27 と Apache
 - PostgreSQL 17
-- Node.js 22 と Tailwind CSS 4
+- Node.js 22.23.4 と Tailwind CSS 4
 
-Webサーバーはローカルの `127.0.0.1:8080` で待ち受けます。別のアプリが同じポートを使用している場合は、`compose.yaml` のポート設定を変更してください。
+WebサーバーはIPv4の全インターフェース（`0.0.0.0:8080`）で待ち受けます。このPCでは `http://localhost:8080`、同じLANの別端末では `http://このPCのLAN側IPv4アドレス:8080` にアクセスします。別のアプリが同じポートを使用している場合は、`compose.yaml` のポート設定を変更してください。
 
 `.env` には認証情報が含まれるため、Gitには登録しないでください。既存のDBを使っている場合は、`.env` のパスワードを変更するだけではDB側に反映されません。

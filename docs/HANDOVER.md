@@ -43,21 +43,21 @@ WSL2のUbuntuとDocker Desktopを使い、空のDBから開発を再開する方
 
 | 項目 | 設定・用途 | 確認元 |
 | --- | --- | --- |
-| Webサーバー | `php:8.4-apache`、PDO PostgreSQL拡張 | `Dockerfile` |
+| Webサーバー | `php:8.4.27-apache`、PDO PostgreSQL拡張 | `Dockerfile` |
 | 公開ディレクトリ | コンテナ内 `/var/www/html/public` | `Dockerfile` |
 | PHPソース | `src` を `/var/www/html` にマウント | `compose.yaml` |
 | データベース | `postgres:17` | `compose.yaml` |
-| CSS用Node.js | `node:22-bookworm-slim`、ユーザー `node` | `compose.yaml` |
+| CSS用Node.js | `node:22.23.4-bookworm-slim`、ユーザー `node` | `compose.yaml` |
 | CSSツール | Tailwind CSS / CLI `4.1.13` | `package.json` |
 | 依存関係の固定 | `package-lock.json`、インストールは `npm ci` | `package-lock.json` |
-| ブラウザーのURL | `http://localhost:8080` → コンテナの80番 | `compose.yaml` |
+| ブラウザーのURL | このPCは `http://localhost:8080`、同じLANの別端末は `http://ホストのLAN側IPv4アドレス:8080`。`0.0.0.0:8080` → コンテナの80番 | `compose.yaml` |
 | DB接続 | Compose内部の `db:5432`。ホストにはDBポートを公開しない | `compose.yaml` |
 | DBの永続化 | Compose管理の名前付きボリューム `postgres_data` | `compose.yaml` |
 | 初期化SQL | `database/init/001` ～ `008` の順 | `database/init` |
 | フロントエンド | PHPの画面 + JavaScript + CSS。フロント用サーバーは不要 | `src/public` |
 | 外部アクセス | Dockerイメージ、npm、Tailwind CDN、Google Fonts、GitHub | 各設定・画面 |
 
-PHP、Node.js、npm、PostgreSQLをWindowsやUbuntuに個別インストールする必要はありません。Dockerイメージはタグ指定なので、パッチバージョンまで作者と一致する保証はありません。
+PHP、Node.js、npm、PostgreSQLをWindowsやUbuntuに個別インストールする必要はありません。PHPとNode.jsは2026年10月27日にセキュリティ修正版のパッチバージョンへ固定しました。今後の修正版公開時にはタグを更新して再取得・再ビルドしてください。PostgreSQLはメジャーバージョンのタグ指定です。
 
 ### 作者のホスト環境（参考値）
 
@@ -181,7 +181,9 @@ curl --silent --show-error -o /dev/null -w '%{http_code}\n' http://localhost:808
 - トップページがHTTP `200`、未ログインの `me.php` がHTTP `401` を返す。後者は正常。
 - Windowsのブラウザーで `http://localhost:8080` を開くとログイン・登録画面が出る。
 
-DBの初期化SQLは空のデータ領域の初回起動時に順番に実行されます。既存データがある場合は自動再実行されません。`node` はCSSの変更監視で動き続けます。
+同じLANの別端末から開く場合は、Dockerを動かしているPCのLAN側IPv4アドレスを使います。Linuxでは `ip -4 address`、Windowsでは `ipconfig` で確認できます。別端末の `localhost` はその端末自身を指すため、ホストPCのアドレスに置き換えてください。接続できない場合は、ホストPCのファイアウォールとWi-Fiの端末間通信制限を確認します。Windows / WSL2でのLAN接続は本資料では実機未確認です。
+
+DBの初期化SQLは空のデータ領域の初回起動時に順番に実行されます。既存データがある場合は自動再実行されません。`node` はCSSの変更監視で動き続けます。監視コマンドの `--watch=always` は、バックグラウンド起動で標準入力が閉じても監視を継続するために指定しています。
 
 ## 5. テストと画面確認
 
@@ -402,12 +404,25 @@ git pull --ff-only origin main
 
 - `package-lock.json` 変更：nodeを停止し、コンテナで `npm ci` を実行して再起動する。
 - `Dockerfile` 変更：再ビルドする。
+- PHP / Node.jsのバージョン更新：次の手順でイメージを更新し、実バージョンを確認する。ホスト側の更新だけではコンテナに反映されない。
 - SQL追加：既存DBの構造を確認し、7章に従って不足分を適用する。
 - 機能変更：関連テストと画面を確認する。
+
+```bash
+docker compose pull node
+docker compose build --pull php
+docker compose up -d php node
+docker compose exec -T php php -v
+docker compose exec -T node node -v
+```
+
+2026年10月27日の更新ではPHP `8.4.27`、Node.js `22.23.4` を使用する。更新後は5.1節の4種類のテストを実行する。
 
 変更を共有するときは `git diff` と `git status` を確認します。`.env`、node_modules、DBバックアップ、個人設定は含めません。`package-lock.json` と生成済み `src/public/assets/app.css` はGit管理対象です。検証だけでapp.cssが変わった場合は差分を確認し、自分の変更と区別してください。
 
 ## 9. 確認済み事項と残っている制約
+
+2026年10月27日のバージョン更新時、作者のLinux / Docker環境でPHP `8.4.27`、Node.js `22.23.4` の稼働を確認しました。設定共有45件、タスク日時15件、API333項目、表示設定87項目のテストとPHPの構文確認が成功し、トップページはHTTP `200`、未ログインの `me.php` はHTTP `401` を返しました。ホスト側はPHP `8.5.12`、miseの既定Node.js `24.22.1` です。
 
 2026年10月20日の調査時点：
 
