@@ -110,6 +110,37 @@
     flex-shrink: 0;
 }
 
+@media (max-width: 640px) {
+    .settings-actions {
+        flex-wrap: nowrap;
+        align-items: stretch;
+        gap: 0.375rem;
+        overflow-x: auto;
+    }
+
+    .settings-actions > button[type='submit'] {
+        flex: 0 0 auto;
+        white-space: nowrap;
+        padding: 0.625rem 0.5rem;
+        font-size: 0.75rem;
+    }
+
+    .color-reset-actions {
+        flex: 0 0 auto;
+        gap: 0.375rem;
+    }
+
+    .color-reset-actions button {
+        white-space: nowrap;
+        padding: 0.625rem 0.5rem;
+        font-size: 0.75rem;
+    }
+
+    .theme-app #reset-colors {
+        flex: 0 0 auto;
+    }
+}
+
 /* 復旧ボタンと結果は、テーマや枠・フォント変更に影響されない固定表示にする。 */
 .color-reset-feedback {
     padding: 0.5rem;
