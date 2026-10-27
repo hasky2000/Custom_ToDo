@@ -209,9 +209,8 @@ function setColorControlsDisabled(disabled) {
 }
 
 function rememberSettingsBeforeEditing() {
-    if (!undoSettings) {
-        undoSettings = { colors: { ...savedColors }, appearance: { ...savedAppearance } };
-    }
+    // 自動保存後の次の編集では、その時点の保存済み設定を取り消し先にする。
+    undoSettings = { colors: { ...savedColors }, appearance: { ...savedAppearance } };
 }
 
 function cacheSettings(settings, pending) {
@@ -348,11 +347,10 @@ function queueSettingsSave(immediate, successMessage) {
 
 function showSettingsCategory(category) {
     const descriptions = {
-        colors: ['配色', '背景・ボタン・文字などの色を変更できます。文字色と背景色は、RGB各値の差の絶対値の合計が10以上になるように指定してください。変更はアカウントに自動保存されます。'],
+        colors: ['配色', '背景・ボタン・文字などの色を変更できます。'],
         effects: ['枠・効果', '枠の太さ、背景ブラー、影を設定できます。変更は自動保存されます。'],
-        fonts: ['フォント', '書体を選ぶとサイト全体に反映され、自動保存されます。'],
-        sharing: ['カラーの共有', '配色を文字列で共有し、インポートできます。'],
-        account: ['アカウント', 'ログイン中のアカウントを確認できます。'],
+        fonts: ['フォント', 'フォントを選ぶとサイト全体に反映されます'],
+        sharing: ['カラーの共有', '配列を文字列でインポート・エクスポートし、共有できます。'],
     };
     const [title, description] = descriptions[category];
     document.querySelector('#settings-category-title').textContent = title;
@@ -361,8 +359,7 @@ function showSettingsCategory(category) {
     for (const panel of document.querySelectorAll('[data-settings-category]')) {
         panel.classList.toggle('hidden', panel.dataset.settingsCategory !== category);
     }
-    document.querySelector('#settings-preview').classList.toggle('hidden', ['sharing', 'account'].includes(category));
-    colorsForm.classList.toggle('hidden', category === 'account');
+    document.querySelector('#settings-preview').classList.toggle('hidden', category === 'sharing');
 }
 
 function refreshPaletteExport() {

@@ -41,6 +41,9 @@ function normalizeTaskInput(array $input, ?array $existingTask = null): array
     }
     $content = is_string($content) ? trimTaskText($content) : null;
     $content = $content === '' ? null : $content;
+    if ($content !== null && preg_match_all('/./us', $content) > 511) {
+        throw new InvalidArgumentException('内容は511文字以内で入力してください。');
+    }
 
     $startsAt = parseTaskDate($input['starts_at'] ?? null, '開始日時');
     $scheduledAt = parseTaskDate($input['scheduled_at'] ?? null, '締切日時');

@@ -26,12 +26,12 @@ function verify(bool $condition, string $description): void
     $checks++;
 }
 
-function requestApi(string $endpoint, string $method, ?array $body, string &$cookie, int $expectedStatus, bool $expectJson = true): array
+function requestApi(string $endpoint, string $method, ?array $body, string &$cookie, int $expectedStatus, bool $expectJson = true, ?string $rawBody = null, string $contentType = 'application/json'): array
 {
     $context = stream_context_create(['http' => [
         'method' => $method,
-        'header' => "Content-Type: application/json\r\nCookie: {$cookie}\r\n",
-        'content' => $body === null ? '' : json_encode($body, JSON_THROW_ON_ERROR),
+        'header' => "Content-Type: {$contentType}\r\nCookie: {$cookie}\r\n",
+        'content' => $rawBody ?? ($body === null ? '' : json_encode($body, JSON_THROW_ON_ERROR)),
         'ignore_errors' => true,
         'timeout' => 5,
     ]]);
@@ -64,6 +64,8 @@ try {
     }
 
     $cookie = '';
+    requestApi('change_password', 'POST', ['current_password' => 'test-password', 'new_password' => 'new-password'], $cookie, 401);
+    requestApi('change_password', 'GET', null, $cookie, 405);
     requestApi('restore_task', 'PATCH', ['id' => 1], $cookie, 401);
     requestApi('reorder_task', 'PATCH', ['task_ids' => [1]], $cookie, 401);
     requestApi('debug', 'GET', null, $cookie, 404, false);
@@ -232,6 +234,21 @@ try {
     verify(strtotime($unchangedPeriod['scheduled_at']) === strtotime($expiredEnd), '別の過去日時への変更は拒否する');
     foreach ($scheduleTaskIds as $id) requestApi('delete_task', 'DELETE', ['id' => $id], $cookie, 200);
 
+    foreach (['a', 'あ', '😀'] as $character) {
+        $limitContent = str_repeat($character, 511);
+        $limitTask = requestApi('add_task', 'POST', ['title' => '内容の文字数制限', 'content' => $limitContent], $cookie, 201)['data'];
+        verify($limitTask['content'] === $limitContent, '内容は日本語・絵文字も511文字まで保存できる');
+        $overLimitContent = $limitContent . $character;
+        $error = requestApi('add_task', 'POST', ['title' => '保存されない内容', 'content' => $overLimitContent], $cookie, 422);
+        verify($error['error'] === '内容は511文字以内で入力してください。', '追加時に内容の上限超過を案内する');
+        requestApi('edit_task', 'PATCH', ['id' => $limitTask['id'], 'title' => '内容の文字数制限', 'content' => $overLimitContent], $cookie, 422);
+        $storedTask = requestApi('get_tasks', 'GET', null, $cookie, 200)['data'][0];
+        verify($storedTask['content'] === $limitContent, '上限超過の編集では元の内容を変更しない');
+        $editedLimitTask = requestApi('edit_task', 'PATCH', ['id' => $limitTask['id'], 'title' => '内容の文字数制限', 'content' => $limitContent], $cookie, 200)['data'];
+        verify($editedLimitTask['content'] === $limitContent, '編集でも511文字の内容を保存できる');
+        requestApi('delete_task', 'DELETE', ['id' => $limitTask['id']], $cookie, 200);
+    }
+
     $taskIds = [];
     foreach (['A', 'B', 'C'] as $title) {
         $task = requestApi('add_task', 'POST', [
@@ -314,6 +331,111 @@ try {
     requestApi('me', 'GET', null, $cookie, 401);
     requestApi('login', 'POST', $registration, $cookie, 200);
     verify(activeIds($cookie) === [$a, $b, $c], '再ログイン後も並び順を保持');
+
+    // パスワード変更は失敗時の保持、所有者の分離、再ログインまで検証する。
+    requestApi('change_password', 'PATCH', null, $cookie, 405);
+    requestApi('change_password', 'POST', null, $cookie, 400, rawBody: '{');
+    requestApi('change_password', 'POST', null, $cookie, 400, rawBody: 'null');
+    requestApi('change_password', 'POST', null, $cookie, 415, rawBody: '{}', contentType: 'text/plain');
+    foreach ([
+        [],
+        ['current_password' => 'test-password'],
+        ['new_password' => 'new-password'],
+        ['current_password' => 'wrong-password', 'new_password' => 'new-password'],
+        ['current_password' => 'TEST-PASSWORD', 'new_password' => 'new-password'],
+        ['current_password' => '', 'new_password' => 'new-password'],
+        ['current_password' => 123, 'new_password' => 'new-password'],
+        ['current_password' => [], 'new_password' => 'new-password'],
+        ['current_password' => str_repeat('a', 4097), 'new_password' => 'new-password'],
+        ['current_password' => "test-password\0", 'new_password' => 'new-password'],
+        ['current_password' => 'test-password', 'new_password' => null],
+        ['current_password' => 'test-password', 'new_password' => 12345678],
+        ['current_password' => 'test-password', 'new_password' => []],
+        ['current_password' => 'test-password', 'new_password' => ''],
+        ['current_password' => 'test-password', 'new_password' => '1234567'],
+        ['current_password' => 'test-password', 'new_password' => str_repeat('あ', 7)],
+        ['current_password' => 'test-password', 'new_password' => str_repeat('あ', 25)],
+        ['current_password' => 'test-password', 'new_password' => str_repeat('a', 73)],
+        ['current_password' => 'test-password', 'new_password' => "new-password\0"],
+    ] as $invalidPasswordChange) {
+        $invalidPasswordChange['new_password_confirmation'] = $invalidPasswordChange['new_password'] ?? null;
+        requestApi('change_password', 'POST', $invalidPasswordChange, $cookie, 422);
+        $statement = $pdo->prepare('SELECT password_hash FROM users WHERE id = :id');
+        $statement->execute([':id' => $registeredUser['id']]);
+        verify($statement->fetchColumn() === $firstHash, '不正なパスワード変更ではハッシュを変更しない');
+    }
+
+    foreach ([[], ['new_password_confirmation' => null], ['new_password_confirmation' => 123],
+        ['new_password_confirmation' => []], ['new_password_confirmation' => ''],
+        ['new_password_confirmation' => 'different-password'], ['new_password_confirmation' => 'NEW-PASSWORD'],
+    ] as $confirmationInput) {
+        $error = requestApi('change_password', 'POST', [
+            'current_password' => 'test-password', 'new_password' => 'new-password',
+        ] + $confirmationInput, $cookie, 422);
+        verify($error['error'] === '確認用パスワードが一致しません。', '確認欄のエラー文言をアカウント作成と統一');
+        $statement->execute([':id' => $registeredUser['id']]);
+        verify($statement->fetchColumn() === $firstHash, '確認欄が不正な場合はハッシュを変更しない');
+    }
+
+    $samePasswordError = requestApi('change_password', 'POST', [
+        'current_password' => $registration['password'],
+        'new_password' => $registration['password'], 'new_password_confirmation' => $registration['password'],
+    ], $cookie, 422);
+    verify($samePasswordError['error'] === '新しいパスワードは現在のパスワードと異なるものを入力してください。', '現在と同じパスワードへの変更を拒否');
+    $statement->execute([':id' => $registeredUser['id']]);
+    verify($statement->fetchColumn() === $firstHash, '同じパスワードへの変更ではハッシュを更新しない');
+
+    requestApi('change_password', 'POST', [
+        'user_id' => $registeredUser['id'], 'current_password' => 'test-password',
+        'new_password' => 'other-new-password', 'new_password_confirmation' => 'other-new-password',
+    ], $otherCookie, 200);
+    $statement->execute([':id' => $registeredUser['id']]);
+    verify($statement->fetchColumn() === $firstHash, '他人のIDを指定しても、その人のハッシュを更新しない');
+    requestApi('logout', 'POST', null, $otherCookie, 200);
+    requestApi('login', 'POST', ['email' => $otherAccount['email'], 'password' => 'test-password'], $otherCookie, 401);
+    requestApi('login', 'POST', ['email' => $otherAccount['email'], 'password' => 'other-new-password'], $otherCookie, 200);
+
+    $newPassword = str_repeat('x', 72);
+    $changed = requestApi('change_password', 'POST', [
+        'current_password' => $registration['password'], 'new_password' => $newPassword, 'new_password_confirmation' => $newPassword,
+    ], $cookie, 200);
+    verify($changed === ['data' => ['password_changed' => true]], '変更APIはパスワードやハッシュを返さない');
+    $statement->execute([':id' => $registeredUser['id']]);
+    $changedHash = $statement->fetchColumn();
+    verify($changedHash !== $firstHash && $changedHash !== $newPassword && password_verify($newPassword, $changedHash), '新しいパスワードをハッシュ化して保存');
+    verify(!password_verify($registration['password'], $changedHash), '更新後のハッシュは旧パスワードに一致しない');
+    verify((int) requestApi('me', 'GET', null, $cookie, 200)['data']['id'] === $registeredUser['id'], '変更後もログイン状態を維持');
+    requestApi('change_password', 'POST', [
+        'current_password' => $registration['password'], 'new_password' => 'stale-password', 'new_password_confirmation' => 'stale-password',
+    ], $cookie, 422);
+    $statement->execute([':id' => $registeredUser['id']]);
+    verify($statement->fetchColumn() === $changedHash, '変更前のパスワードでは再変更できない');
+    requestApi('change_password', 'POST', [
+        'current_password' => $newPassword, 'new_password' => $newPassword, 'new_password_confirmation' => $newPassword,
+    ], $cookie, 422);
+    $statement->execute([':id' => $registeredUser['id']]);
+    verify($statement->fetchColumn() === $changedHash, '変更後も同じパスワードへの再変更を拒否し、ハッシュを保持');
+    requestApi('logout', 'POST', null, $cookie, 200);
+    requestApi('login', 'POST', $registration, $cookie, 401);
+    requestApi('login', 'POST', ['email' => $registration['email'], 'password' => $newPassword], $cookie, 200);
+    verify(activeIds($cookie) === [$a, $b, $c], 'パスワード変更後もTODOを保持');
+    verify(requestApi('colors', 'GET', null, $cookie, 200)['data']['colors'] == $normalizedColors, 'パスワード変更後も配色を保持');
+
+    $unicodePassword = str_repeat('あ', 24);
+    requestApi('change_password', 'POST', ['current_password' => $newPassword, 'new_password' => $unicodePassword, 'new_password_confirmation' => $unicodePassword], $cookie, 200);
+    requestApi('logout', 'POST', null, $cookie, 200);
+    requestApi('login', 'POST', ['email' => $registration['email'], 'password' => $unicodePassword], $cookie, 200);
+    requestApi('change_password', 'POST', ['current_password' => $unicodePassword, 'new_password' => '12345678', 'new_password_confirmation' => '12345678'], $cookie, 200);
+    requestApi('logout', 'POST', null, $cookie, 200);
+    requestApi('login', 'POST', ['email' => $registration['email'], 'password' => '12345678'], $cookie, 200);
+
+    $deletedCookie = '';
+    $deletedUser = requestApi('register', 'POST', [
+        'email' => 'deleted@example.invalid', 'password' => 'test-password', 'password_confirmation' => 'test-password',
+    ], $deletedCookie, 201)['data'];
+    $statement = $pdo->prepare('DELETE FROM users WHERE id = :id');
+    $statement->execute([':id' => $deletedUser['id']]);
+    requestApi('change_password', 'POST', ['current_password' => 'test-password', 'new_password' => 'new-password', 'new_password_confirmation' => 'new-password'], $deletedCookie, 401);
 
     echo "API integration: {$checks} checks passed.\n";
 } finally {

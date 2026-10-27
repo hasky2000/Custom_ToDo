@@ -87,8 +87,19 @@ $scheduleScriptVersion = filemtime(__DIR__ . '/assets/task-schedule.js');
                 </div>
                 <div>
                     <label for="login-password" class="block text-sm font-semibold">パスワード</label>
-                    <input id="login-password" name="password" type="password" autocomplete="current-password" required
-                        class="mt-1 w-full rounded-lg border border-line bg-field px-3 py-3 focus:border-main focus:outline-none focus:ring-2 focus:ring-accent">
+                    <div class="password-input mt-1">
+                        <input id="login-password" name="password" type="password" autocomplete="current-password" required
+                            class="min-w-0 w-full rounded-lg border border-line bg-field px-3 py-3 focus:border-main focus:outline-none focus:ring-2 focus:ring-accent">
+                        <button type="button" data-password-toggle="login-password" aria-controls="login-password" aria-pressed="false" aria-label="パスワードを表示"
+                            class="password-visibility-toggle">
+                            <svg class="password-eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/>
+                            </svg>
+                            <svg class="password-eye-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                <path d="m3 3 18 18M10.58 10.58a2 2 0 0 0 2.84 2.84M9.88 5.09A10.9 10.9 0 0 1 12 5c6.5 0 10 7 10 7a15.5 15.5 0 0 1-3.08 3.8M6.61 6.61A16.6 16.6 0 0 0 2 12s3.5 7 10 7a10.7 10.7 0 0 0 5.39-1.39"/>
+                            </svg>
+                        </button>
+                    </div>
                 </div>
                 <button type="submit" class="w-full rounded-lg bg-main px-4 py-3 font-semibold text-primary-ink">ログイン</button>
             </form>
@@ -101,14 +112,36 @@ $scheduleScriptVersion = filemtime(__DIR__ . '/assets/task-schedule.js');
                 </div>
                 <div>
                     <label for="register-password" class="block text-sm font-semibold">パスワード</label>
-                    <input id="register-password" name="password" type="password" autocomplete="new-password" minlength="8" required
-                        class="mt-1 w-full rounded-lg border border-line bg-field px-3 py-3 focus:border-main focus:outline-none focus:ring-2 focus:ring-accent">
+                    <div class="password-input mt-1">
+                        <input id="register-password" name="password" type="password" autocomplete="new-password" minlength="8" required
+                            class="min-w-0 w-full rounded-lg border border-line bg-field px-3 py-3 focus:border-main focus:outline-none focus:ring-2 focus:ring-accent">
+                        <button type="button" data-password-toggle="register-password" aria-controls="register-password" aria-pressed="false" aria-label="パスワードを表示"
+                            class="password-visibility-toggle">
+                            <svg class="password-eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/>
+                            </svg>
+                            <svg class="password-eye-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                <path d="m3 3 18 18M10.58 10.58a2 2 0 0 0 2.84 2.84M9.88 5.09A10.9 10.9 0 0 1 12 5c6.5 0 10 7 10 7a15.5 15.5 0 0 1-3.08 3.8M6.61 6.61A16.6 16.6 0 0 0 2 12s3.5 7 10 7a10.7 10.7 0 0 0 5.39-1.39"/>
+                            </svg>
+                        </button>
+                    </div>
                     <p class="mt-1 text-xs text-ink">8文字以上で入力してください。</p>
                 </div>
                 <div>
                     <label for="register-password-confirmation" class="block text-sm font-semibold">パスワード（確認）</label>
-                    <input id="register-password-confirmation" name="password_confirmation" type="password" autocomplete="new-password" minlength="8" required
-                        class="mt-1 w-full rounded-lg border border-line bg-field px-3 py-3 focus:border-main focus:outline-none focus:ring-2 focus:ring-accent">
+                    <div class="password-input mt-1">
+                        <input id="register-password-confirmation" name="password_confirmation" type="password" autocomplete="new-password" minlength="8" required
+                            class="min-w-0 w-full rounded-lg border border-line bg-field px-3 py-3 focus:border-main focus:outline-none focus:ring-2 focus:ring-accent">
+                        <button type="button" data-password-toggle="register-password-confirmation" aria-controls="register-password-confirmation" aria-pressed="false" aria-label="パスワードを表示"
+                            class="password-visibility-toggle">
+                            <svg class="password-eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/>
+                            </svg>
+                            <svg class="password-eye-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                <path d="m3 3 18 18M10.58 10.58a2 2 0 0 0 2.84 2.84M9.88 5.09A10.9 10.9 0 0 1 12 5c6.5 0 10 7 10 7a15.5 15.5 0 0 1-3.08 3.8M6.61 6.61A16.6 16.6 0 0 0 2 12s3.5 7 10 7a10.7 10.7 0 0 0 5.39-1.39"/>
+                            </svg>
+                        </button>
+                    </div>
                 </div>
                 <button type="submit" class="w-full rounded-lg bg-main px-4 py-3 font-semibold text-primary-ink">アカウントを作成</button>
             </form>
@@ -133,7 +166,7 @@ $scheduleScriptVersion = filemtime(__DIR__ . '/assets/task-schedule.js');
 
             <section id="todo-page" aria-labelledby="page-title">
                 <div class="mb-4 flex items-start justify-between gap-3">
-                    <p id="task-order-help" class="min-w-0 flex-1 text-sm text-ink">締切日ごとに表示します。同じ日付の中でドラッグして並べ替えできます。</p>
+                    <p id="task-order-help" class="min-w-0 flex-1 text-sm text-ink">締切日ごとに表示します。<br>同じ日付の中でドラッグして並べ替えできます。</p>
                     <span id="task-count" class="shrink-0 text-sm text-ink"></span>
                 </div>
                 <div id="task-list" class="space-y-6"></div>
@@ -164,19 +197,19 @@ $scheduleScriptVersion = filemtime(__DIR__ . '/assets/task-schedule.js');
             <section id="my-page" class="hidden space-y-6" aria-label="マイページ">
                 <a id="open-archive-page" href="#archive" class="block rounded-2xl border border-line bg-card p-5 font-semibold shadow-sm">アーカイブを見る →</a>
                 <a href="#settings" class="block rounded-2xl border border-line bg-card p-5 font-semibold shadow-sm">設定を開く →</a>
+                <a href="#account" class="block rounded-2xl border border-line bg-card p-5 font-semibold shadow-sm">アカウント →</a>
             </section>
 
             <section id="settings-page" class="hidden space-y-6" aria-label="設定">
                 <div>
                     <h2 class="text-lg font-bold">設定のカテゴリ</h2>
-                    <p class="mt-2 text-sm leading-6">変更した設定はアカウントに自動保存されます。</p>
+                    <p class="mt-2 text-sm leading-6">設定は自動保存されます</p>
                 </div>
                 <div class="grid gap-4">
                     <a href="#settings/colors" class="rounded-2xl border border-line bg-card p-5 shadow-sm"><span class="block font-bold">配色 →</span><span class="mt-2 block text-sm">背景・ボタン・文字などの色</span></a>
                     <a href="#settings/effects" class="rounded-2xl border border-line bg-card p-5 shadow-sm"><span class="block font-bold">枠・効果 →</span><span class="mt-2 block text-sm">枠の太さ・背景ブラー・影</span></a>
                     <a href="#settings/fonts" class="rounded-2xl border border-line bg-card p-5 shadow-sm"><span class="block font-bold">フォント →</span><span class="mt-2 block text-sm">文字の書体</span></a>
                     <a href="#settings/sharing" class="rounded-2xl border border-line bg-card p-5 shadow-sm"><span class="block font-bold">カラーの共有 →</span><span class="mt-2 block text-sm">配色文字列のエクスポート・インポート</span></a>
-                    <a href="#settings/account" class="rounded-2xl border border-line bg-card p-5 shadow-sm"><span class="block font-bold">アカウント →</span><span class="mt-2 block text-sm">ログイン情報・ログアウト</span></a>
                 </div>
             </section>
 
@@ -188,7 +221,6 @@ $scheduleScriptVersion = filemtime(__DIR__ . '/assets/task-schedule.js');
                 <div id="settings-preview" class="overflow-hidden rounded-2xl border border-line bg-card shadow-sm" aria-label="表示のプレビュー">
                     <div class="bg-header px-5 py-3 font-semibold">プレビュー</div>
                     <div class="space-y-3 p-5">
-                        <p class="text-sm">カード・文字・ボタンの見た目を確認できます。</p>
                         <label for="appearance-preview-input" class="block text-sm font-semibold">入力欄のプレビュー</label>
                         <input id="appearance-preview-input" type="text" value="Custom ToDo — TODOリスト" readonly
                             class="w-full rounded-lg border border-line bg-field px-3 py-2">
@@ -256,7 +288,6 @@ $scheduleScriptVersion = filemtime(__DIR__ . '/assets/task-schedule.js');
                     </fieldset>
                     <section data-settings-category="colors" class="space-y-3" aria-label="配色テンプレート">
                         <h3 class="font-bold">配色テンプレート</h3>
-                        <p class="text-sm">選ぶと配色を切り替えて自動保存します。フォントや枠の設定は保持します。</p>
                         <div class="color-template-grid">
                             <?php foreach ($colorTemplates['templates'] as $template): ?>
                             <button type="button" class="color-template-button" data-color-template="<?= $template['id'] ?>" aria-pressed="false"
@@ -300,11 +331,71 @@ $scheduleScriptVersion = filemtime(__DIR__ . '/assets/task-schedule.js');
                     </div>
                     <p id="color-reset-message" data-settings-category="colors" class="color-reset-feedback" role="status"></p>
                 </form>
-                <section data-settings-category="account" class="rounded-2xl border border-line bg-card p-5 shadow-sm" aria-label="アカウント情報">
+            </section>
+
+            <section id="account-page" class="hidden space-y-6" aria-label="アカウント">
+                <div class="rounded-2xl border border-line bg-card p-5 shadow-sm" aria-label="アカウント情報">
                     <p class="text-xs font-semibold">ログイン中のアカウント</p>
-                    <p id="settings-email" class="mt-2 break-all font-semibold"></p>
+                    <p id="account-email" class="mt-2 break-all font-semibold"></p>
                     <button id="logout-button" type="button" class="mt-5 w-full rounded-xl border border-line px-4 py-3 text-sm font-semibold hover:bg-accent">ログアウト</button>
-                </section>
+                    <a href="#account/password" class="mt-3 block w-full rounded-xl border border-line px-4 py-3 text-center text-sm font-semibold hover:bg-accent">パスワード変更</a>
+                </div>
+            </section>
+
+            <section id="password-change-page" class="hidden space-y-6" aria-label="パスワード変更">
+                <form id="password-change-form" class="space-y-5 rounded-2xl border border-line bg-card p-5 shadow-sm">
+                    <div>
+                        <label for="current-password" class="block text-sm font-semibold">現在のパスワード</label>
+                        <div class="password-input mt-1">
+                            <input id="current-password" name="current_password" type="password" required maxlength="4096" autocomplete="current-password"
+                                class="min-w-0 w-full rounded-lg border border-line bg-field px-3 py-2 focus:border-main focus:outline-none focus:ring-2 focus:ring-accent">
+                            <button type="button" data-password-toggle="current-password" aria-controls="current-password" aria-pressed="false" aria-label="パスワードを表示"
+                                class="password-visibility-toggle">
+                                <svg class="password-eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                    <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/>
+                                </svg>
+                                <svg class="password-eye-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                    <path d="m3 3 18 18M10.58 10.58a2 2 0 0 0 2.84 2.84M9.88 5.09A10.9 10.9 0 0 1 12 5c6.5 0 10 7 10 7a15.5 15.5 0 0 1-3.08 3.8M6.61 6.61A16.6 16.6 0 0 0 2 12s3.5 7 10 7a10.7 10.7 0 0 0 5.39-1.39"/>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                    <div>
+                        <label for="new-password" class="block text-sm font-semibold">パスワード</label>
+                        <div class="password-input mt-1">
+                            <input id="new-password" name="new_password" type="password" required minlength="8" maxlength="72" autocomplete="new-password" aria-describedby="new-password-help"
+                                class="min-w-0 w-full rounded-lg border border-line bg-field px-3 py-2 focus:border-main focus:outline-none focus:ring-2 focus:ring-accent">
+                            <button type="button" data-password-toggle="new-password" aria-controls="new-password" aria-pressed="false" aria-label="パスワードを表示"
+                                class="password-visibility-toggle">
+                                <svg class="password-eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                    <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/>
+                                </svg>
+                                <svg class="password-eye-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                    <path d="m3 3 18 18M10.58 10.58a2 2 0 0 0 2.84 2.84M9.88 5.09A10.9 10.9 0 0 1 12 5c6.5 0 10 7 10 7a15.5 15.5 0 0 1-3.08 3.8M6.61 6.61A16.6 16.6 0 0 0 2 12s3.5 7 10 7a10.7 10.7 0 0 0 5.39-1.39"/>
+                                </svg>
+                            </button>
+                        </div>
+                        <p id="new-password-help" class="mt-1 text-xs text-ink">8文字以上で入力してください。</p>
+                    </div>
+                    <div>
+                        <label for="new-password-confirmation" class="block text-sm font-semibold">パスワード（確認）</label>
+                        <div class="password-input mt-1">
+                            <input id="new-password-confirmation" name="new_password_confirmation" type="password" required minlength="8" maxlength="72" autocomplete="new-password"
+                                class="min-w-0 w-full rounded-lg border border-line bg-field px-3 py-2 focus:border-main focus:outline-none focus:ring-2 focus:ring-accent">
+                            <button type="button" data-password-toggle="new-password-confirmation" aria-controls="new-password-confirmation" aria-pressed="false" aria-label="パスワードを表示"
+                                class="password-visibility-toggle">
+                                <svg class="password-eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                    <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/>
+                                </svg>
+                                <svg class="password-eye-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                    <path d="m3 3 18 18M10.58 10.58a2 2 0 0 0 2.84 2.84M9.88 5.09A10.9 10.9 0 0 1 12 5c6.5 0 10 7 10 7a15.5 15.5 0 0 1-3.08 3.8M6.61 6.61A16.6 16.6 0 0 0 2 12s3.5 7 10 7a10.7 10.7 0 0 0 5.39-1.39"/>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                    <p id="password-change-message" class="min-h-6 text-sm font-semibold" role="status"></p>
+                    <button type="submit" class="w-full rounded-xl bg-main px-4 py-3 text-sm font-semibold text-primary-ink disabled:opacity-50">パスワードを変更する</button>
+                </form>
             </section>
 
         </main>
@@ -348,8 +439,9 @@ $scheduleScriptVersion = filemtime(__DIR__ . '/assets/task-schedule.js');
 
             <div>
                 <label for="content" class="block font-medium">内容</label>
-                <textarea id="content" name="content" maxlength="511" rows="3"
+                <textarea id="content" name="content" maxlength="511" rows="3" aria-describedby="content-help"
                     class="mt-1 w-full rounded-lg border border-line bg-field px-3 py-2 focus:border-main focus:outline-none focus:ring-2 focus:ring-accent"></textarea>
+                <p id="content-help" class="mt-1 text-xs text-ink">511文字以内で入力してください。</p>
             </div>
 
             <div>
@@ -401,8 +493,9 @@ $scheduleScriptVersion = filemtime(__DIR__ . '/assets/task-schedule.js');
 
             <div>
                 <label for="edit-content" class="block font-medium">内容</label>
-                <textarea id="edit-content" name="content" maxlength="511" rows="3"
+                <textarea id="edit-content" name="content" maxlength="511" rows="3" aria-describedby="edit-content-help"
                     class="mt-1 w-full rounded-lg border border-line bg-field px-3 py-2 focus:border-main focus:outline-none focus:ring-2 focus:ring-accent"></textarea>
+                <p id="edit-content-help" class="mt-1 text-xs text-ink">511文字以内で入力してください。</p>
             </div>
 
             <div>

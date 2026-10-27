@@ -17,7 +17,14 @@ const showLoginButton = document.querySelector('#show-login');
 const showRegisterButton = document.querySelector('#show-register');
 const currentUserEmail = document.querySelector('#current-user-email');
 const logoutButton = document.querySelector('#logout-button');
-const settingsEmail = document.querySelector('#settings-email');
+const accountEmail = document.querySelector('#account-email');
+const accountPage = document.querySelector('#account-page');
+const passwordChangePage = document.querySelector('#password-change-page');
+const passwordChangeForm = document.querySelector('#password-change-form');
+const passwordChangeMessage = document.querySelector('#password-change-message');
+const currentPassword = document.querySelector('#current-password');
+const newPassword = document.querySelector('#new-password');
+const newPasswordConfirmation = document.querySelector('#new-password-confirmation');
 const todoPage = document.querySelector('#todo-page');
 const myPage = document.querySelector('#my-page');
 const pageTitle = document.querySelector('#page-title');
@@ -34,6 +41,7 @@ const registerPassword = document.querySelector('#register-password');
 const registerPasswordConfirmation = document.querySelector('#register-password-confirmation');
 const settingsPage = document.querySelector('#settings-page');
 const settingsDetailPage = document.querySelector('#settings-detail-page');
+const passwordToggleButtons = document.querySelectorAll('[data-password-toggle]');
 let completedTasks = [];
 let isReordering = false;
 let dragState = null;
@@ -41,18 +49,38 @@ let currentPage = 'todo';
 let pageRequestId = 0;
 let taskLabelDay = '';
 
+function setPasswordVisibility(button, visible) {
+    const input = document.querySelector(`#${button.dataset.passwordToggle}`);
+    input.type = visible ? 'text' : 'password';
+    button.setAttribute('aria-pressed', String(visible));
+    button.setAttribute('aria-label', visible ? 'パスワードを非表示' : 'パスワードを表示');
+}
+
+function hidePasswords() {
+    for (const button of passwordToggleButtons) setPasswordVisibility(button, false);
+}
+
+for (const button of passwordToggleButtons) {
+    const input = document.querySelector(`#${button.dataset.passwordToggle}`);
+    button.addEventListener('click', () => setPasswordVisibility(button, input.type === 'password'));
+    input.form.addEventListener('reset', () => setPasswordVisibility(button, false));
+}
+
 function showAuthMessage(text) {
     authMessage.textContent = text;
 }
 
 function showAuthView() {
+    hidePasswords();
+    resetPasswordChangeForm();
     appShell.classList.add('hidden');
     authView.classList.remove('hidden');
 }
 
 async function showApp(user) {
+    hidePasswords();
     currentUserEmail.textContent = user.email;
-    settingsEmail.textContent = user.email;
+    accountEmail.textContent = user.email;
     let settingsError = null;
     try {
         await loadUserColors(user.id);
@@ -67,6 +95,8 @@ async function showApp(user) {
 }
 
 function showPage(page) {
+    hidePasswords();
+    resetPasswordChangeForm();
     currentPage = page;
     pageRequestId++;
     const isTodoPage = page === 'todo';
@@ -75,12 +105,28 @@ function showPage(page) {
     archivePage.classList.toggle('hidden', page !== 'archive');
     settingsPage.classList.toggle('hidden', page !== 'settings');
     settingsDetailPage.classList.toggle('hidden', page !== 'settings-detail');
+    accountPage.classList.toggle('hidden', page !== 'account');
+    passwordChangePage.classList.toggle('hidden', page !== 'password-change');
     openTaskFormButton.classList.toggle('hidden', !isTodoPage);
-    pageTitle.textContent = { todo: 'TODOリスト', my: 'マイページ', archive: 'アーカイブ', settings: '設定', 'settings-detail': '設定' }[page];
-    const backPage = { archive: 'my', settings: 'my', 'settings-detail': 'settings' }[page];
+    pageTitle.textContent = {
+        todo: 'TODOリスト',
+        my: 'マイページ',
+        archive: 'アーカイブ',
+        settings: '設定',
+        'settings-detail': '設定',
+        account: 'アカウント',
+        'password-change': 'パスワード変更',
+    }[page];
+    const backPage = {
+        archive: 'my',
+        settings: 'my',
+        'settings-detail': 'settings',
+        account: 'my',
+        'password-change': 'account',
+    }[page];
     headerBack.classList.toggle('hidden', !backPage);
     headerBack.href = `#${backPage ?? 'todo'}`;
-    headerBack.setAttribute('aria-label', backPage === 'settings' ? '設定に戻る' : 'マイページに戻る');
+    headerBack.setAttribute('aria-label', { settings: '設定に戻る', account: 'アカウントに戻る' }[backPage] ?? 'マイページに戻る');
     const navigationButtons = { todo: showTodoPageButton, my: showMyPageButton };
     const selectedNavigation = page === 'todo' ? 'todo' : 'my';
     for (const [name, button] of Object.entries(navigationButtons)) {
@@ -98,6 +144,7 @@ function showPage(page) {
 }
 
 function selectAuthForm(type) {
+    hidePasswords();
     const isLogin = type === 'login';
     loginForm.classList.toggle('hidden', !isLogin);
     registerForm.classList.toggle('hidden', isLogin);
@@ -357,7 +404,7 @@ function createTaskElement(task, total) {
 
     if (task.content) {
         const content = document.createElement('p');
-        content.className = 'whitespace-pre-wrap text-sm leading-6 text-ink';
+        content.className = 'task-content text-sm leading-6 text-ink';
         content.textContent = task.content;
         detailArea.append(content);
     }
@@ -668,7 +715,7 @@ function createCompletedTaskElement(task) {
 
     if (task.content) {
         const content = document.createElement('p');
-        content.className = 'mt-1 text-sm text-ink';
+        content.className = 'task-content mt-1 text-sm leading-6 text-ink';
         content.textContent = task.content;
         textArea.append(content);
     }
@@ -929,13 +976,20 @@ async function activateCurrentPage() {
     if (dragState) {
         cancelTaskDrag({});
     }
-    const route = window.location.hash.slice(1);
+    let route = window.location.hash.slice(1);
+    // 移動前のアカウント画面へのリンクも、新しい階層で開く。
+    if (route === 'settings/account') {
+        route = 'account';
+        window.history.replaceState(null, '', '#account');
+    }
     const category = route === 'colors' ? 'colors' : route.startsWith('settings/') ? route.slice(9) : null;
-    if (['colors', 'effects', 'fonts', 'sharing', 'account'].includes(category)) {
+    if (route === 'account/password') {
+        showPage('password-change');
+    } else if (['colors', 'effects', 'fonts', 'sharing'].includes(category)) {
         showPage('settings-detail');
         showSettingsCategory(category);
     } else {
-        showPage(['todo', 'my', 'archive', 'settings'].includes(route) ? route : 'todo');
+        showPage(['todo', 'my', 'archive', 'settings', 'account'].includes(route) ? route : 'todo');
     }
     if (currentPage === 'archive') {
         await openArchivePage();
@@ -999,6 +1053,69 @@ registerForm.addEventListener('submit', async (event) => {
         await authenticate('/api/register.php', registerForm);
     } catch (error) {
         showAuthMessage(error.message);
+    }
+});
+
+function validatePasswordChangeDifference() {
+    const isDifferent = newPassword.value === '' || newPassword.value !== currentPassword.value;
+    newPassword.setCustomValidity(isDifferent ? '' : '新しいパスワードは現在のパスワードと異なるものを入力してください。');
+    return isDifferent;
+}
+currentPassword.addEventListener('input', validatePasswordChangeDifference);
+newPassword.addEventListener('input', validatePasswordChangeDifference);
+
+function validatePasswordChangeConfirmation() {
+    const matches = newPassword.value === newPasswordConfirmation.value;
+    newPasswordConfirmation.setCustomValidity(matches ? '' : '確認用パスワードが一致しません。');
+    return matches;
+}
+newPassword.addEventListener('input', validatePasswordChangeConfirmation);
+newPasswordConfirmation.addEventListener('input', validatePasswordChangeConfirmation);
+
+function resetPasswordChangeForm() {
+    passwordChangeForm.reset();
+    newPassword.setCustomValidity('');
+    newPasswordConfirmation.setCustomValidity('');
+    passwordChangeMessage.textContent = '';
+}
+
+passwordChangeForm.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    if (passwordChangeForm.dataset.submitting === 'true') return;
+    if (!validatePasswordChangeConfirmation()) {
+        newPasswordConfirmation.reportValidity();
+        passwordChangeMessage.textContent = '確認用パスワードが一致しません。';
+        return;
+    }
+    if (!validatePasswordChangeDifference()) {
+        newPassword.reportValidity();
+        passwordChangeMessage.textContent = '新しいパスワードは現在のパスワードと異なるものを入力してください。';
+        return;
+    }
+    if (!passwordChangeForm.reportValidity()) return;
+
+    const formData = new FormData(passwordChangeForm);
+    const submitButton = passwordChangeForm.querySelector('[type="submit"]');
+    const requestId = pageRequestId;
+    passwordChangeForm.dataset.submitting = 'true';
+    submitButton.disabled = true;
+    passwordChangeMessage.textContent = 'パスワードを変更しています。';
+
+    try {
+        await requestJson('/api/change_password.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(Object.fromEntries(formData)),
+        });
+        // 移動後の画面に、以前のリクエストの結果を表示しない。
+        if (requestId !== pageRequestId) return;
+        resetPasswordChangeForm();
+        passwordChangeMessage.textContent = 'パスワードを変更しました。次回から新しいパスワードでログインしてください。';
+    } catch (error) {
+        if (requestId === pageRequestId) passwordChangeMessage.textContent = error.message;
+    } finally {
+        passwordChangeForm.dataset.submitting = 'false';
+        submitButton.disabled = false;
     }
 });
 

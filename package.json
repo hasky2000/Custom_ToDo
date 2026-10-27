@@ -3,7 +3,8 @@
   "private": true,
   "scripts": {
     "test:task-schedule": "node tests/task-schedule.test.cjs",
-    "test:settings-sharing": "node tests/settings-sharing.test.cjs",
+    "test:settings-sharing": "node tests/settings-sharing.test.cjs && node tests/settings-undo.test.cjs",
+    "test:password-change": "node tests/password-change.test.cjs",
     "dev": "tailwindcss -i ./src/css/input.css -o ./src/public/assets/app.css --watch=always",
     "build": "tailwindcss -i ./src/css/input.css -o ./src/public/assets/app.css --minify"
   },
