@@ -71,7 +71,7 @@ $scheduleScriptVersion = filemtime(__DIR__ . '/assets/task-schedule.js');
     <section id="auth-view" class="mx-auto flex min-h-screen max-w-lg items-start bg-surface px-6 py-12 shadow-xl">
         <div class="w-full">
             <p class="text-xs font-semibold uppercase tracking-[0.22em] text-ink">Custom ToDo</p>
-            <h1 class="mt-2 text-3xl font-bold">おかえりなさい</h1>
+            <h1 class="mt-2 text-3xl font-bold">おかえりなさい!!!</h1>
             <p class="mt-2 text-sm text-ink">メールアドレスとパスワードでログインしてください。</p>
 
             <div class="mt-8 grid grid-cols-2 rounded-xl bg-accent p-1">
