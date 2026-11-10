@@ -8,6 +8,12 @@ const closeTaskFormButton = document.querySelector('#close-task-form');
 const editTaskDialog = document.querySelector('#edit-task-dialog');
 const editTaskForm = document.querySelector('#edit-task-form');
 const closeEditTaskFormButton = document.querySelector('#close-edit-task-form');
+const completionDialog = document.querySelector('#completion-dialog');
+const completionForm = document.querySelector('#completion-form');
+const completionTaskTitle = document.querySelector('#completion-task-title');
+const completionMessage = document.querySelector('#completion-message');
+const cancelCompletionButton = document.querySelector('#cancel-completion');
+const confirmCompletionButton = document.querySelector('#confirm-completion');
 const authView = document.querySelector('#auth-view');
 const appShell = document.querySelector('#app-shell');
 const loginForm = document.querySelector('#login-form');
@@ -45,6 +51,12 @@ const settingsPage = document.querySelector('#settings-page');
 const settingsDetailPage = document.querySelector('#settings-detail-page');
 const passwordToggleButtons = document.querySelectorAll('[data-password-toggle]');
 let completedTasks = [];
+let tasks = [];
+let taskDataVersion = 0;
+const pendingTaskCompletions = new Map();
+const taskCompletionDelay = 2500;
+const taskRemovalDuration = 200;
+let taskCompletionConfirmation = null;
 let isReordering = false;
 let dragState = null;
 let currentPage = 'todo';
@@ -73,6 +85,11 @@ function showAuthMessage(text) {
 }
 
 function showAuthView() {
+    for (const pending of pendingTaskCompletions.values()) clearTimeout(pending.timer);
+    pendingTaskCompletions.clear();
+    closeTaskCompletionDialog();
+    tasks = [];
+    taskDataVersion++;
     hidePasswords();
     resetPasswordChangeForm();
     appShell.classList.add('hidden');
@@ -97,6 +114,7 @@ async function showApp(user) {
 }
 
 function showPage(page) {
+    closeTaskCompletionDialog();
     hidePasswords();
     resetPasswordChangeForm();
     currentPage = page;
@@ -236,6 +254,7 @@ function taskFormPayload(form) {
         task_type: form.elements.namedItem('task_type').value,
         starts_at: dateValue('starts_at'),
         scheduled_at: dateValue('scheduled_at'),
+        ...taskRecurrence.payload(form),
     };
 }
 
@@ -283,13 +302,15 @@ function updateTaskFormState(form) {
     if (type === 'period' && start && end && start.getTime() >= end.getTime()) {
         scheduledAt.setCustomValidity('終了日時は開始日時より後を指定してください。');
     }
+    const repeatError = taskRecurrence.updateForm(form);
     form.querySelector('[data-task-form-message]').textContent = titleError
-        || (!startsAt.disabled && startsAt.validationMessage) || (!scheduledAt.disabled && scheduledAt.validationMessage) || '';
+        || (!startsAt.disabled && startsAt.validationMessage) || (!scheduledAt.disabled && scheduledAt.validationMessage) || repeatError || '';
     form.querySelector('[type="submit"]').disabled = titleError !== '' || form.dataset.submitting === 'true';
     return form.checkValidity();
 }
 
 for (const form of [taskForm, editTaskForm]) {
+    taskRecurrence.bindForm(form, () => updateTaskFormState(form));
     form.addEventListener('input', () => updateTaskFormState(form));
     form.addEventListener('change', () => updateTaskFormState(form));
     for (const name of ['starts_at', 'scheduled_at']) {
@@ -316,6 +337,13 @@ function createTaskScheduleElement(task, completed = false) {
     badge.dataset.type = type;
     badge.textContent = taskSchedule.labels[type];
     schedule.append(badge);
+    const repeatLabel = taskRecurrence.label(task);
+    if (repeatLabel) {
+        const repeat = document.createElement('p');
+        repeat.className = 'task-repeat-label';
+        repeat.textContent = repeatLabel;
+        schedule.append(repeat);
+    }
     if (!completed && type !== 'unscheduled') {
         const timing = document.createElement('p');
         timing.className = 'task-timing';
@@ -354,55 +382,180 @@ function refreshTaskTimings() {
 setInterval(refreshTaskTimings, 1000);
 document.addEventListener('visibilitychange', refreshTaskTimings);
 
+function applyTaskColor(card, color) {
+    const hasColor = typeof color === 'string' && /^#[0-9A-F]{6}$/i.test(color);
+    card.classList.toggle('task-colored-card', hasColor);
+    if (hasColor) card.style.setProperty('--task-line-color', color);
+    else card.style.removeProperty('--task-line-color');
+}
+
+function createTaskColorControls(task, item) {
+    const palette = JSON.parse(document.querySelector('#task-color-palette').textContent);
+    let selectedColor = task.background_color ?? null;
+    let saving = false;
+    const section = document.createElement('section');
+    section.className = 'task-color-section';
+    const trigger = document.createElement('button');
+    trigger.type = 'button';
+    trigger.className = 'task-color-trigger';
+    trigger.setAttribute('aria-label', `${task.title}の色を選択`);
+    trigger.setAttribute('aria-controls', `task-color-options-${task.id}`);
+    trigger.title = 'タスクの色を選択';
+    const options = document.createElement('div');
+    options.id = `task-color-options-${task.id}`;
+    options.className = 'task-color-options';
+    const grid = document.createElement('div');
+    grid.className = 'task-color-grid';
+    grid.setAttribute('role', 'group');
+    grid.setAttribute('aria-label', 'タスクの色16色');
+    const message = document.createElement('p');
+    message.className = 'task-color-message';
+    message.setAttribute('role', 'status');
+
+    function showOptions(open) {
+        options.hidden = !open;
+        trigger.setAttribute('aria-expanded', String(open));
+    }
+    function updateSelection() {
+        trigger.style.backgroundColor = selectedColor ?? 'var(--theme-card)';
+        for (const button of grid.children) {
+            const selected = button.dataset.color === selectedColor;
+            button.setAttribute('aria-pressed', String(selected));
+            button.textContent = selected ? '✓' : '';
+        }
+    }
+    async function selectColor(color) {
+        if (saving || pendingTaskCompletions.has(task.id)) return;
+        if (color === selectedColor) {
+            showOptions(false);
+            return;
+        }
+        saving = true;
+        section.dataset.saving = 'true';
+        section.setAttribute('aria-busy', 'true');
+        section.querySelectorAll('button').forEach(button => { button.disabled = true; });
+        message.textContent = '色を保存しています。';
+        try {
+            const result = await requestJson('/api/set_task_color.php', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: task.id, background_color: color }),
+            });
+            // ログアウトや完了後に届いた応答は、現在の一覧に持ち込まない。
+            const currentTask = tasks.find(current => current.id === task.id);
+            if (!currentTask) return;
+            taskDataVersion++;
+            currentTask.background_color = result.data.background_color;
+            selectedColor = result.data.background_color;
+            if (taskList.querySelector(`[data-task-id="${task.id}"]`) !== item) {
+                await getTasks();
+                return;
+            }
+            applyTaskColor(item.querySelector('details'), selectedColor);
+            updateSelection();
+            showOptions(false);
+            message.textContent = '色を保存しました。';
+        } catch (error) {
+            message.textContent = error.message;
+        } finally {
+            saving = false;
+            section.dataset.saving = 'false';
+            section.setAttribute('aria-busy', 'false');
+            section.querySelectorAll('button').forEach(button => {
+                button.disabled = pendingTaskCompletions.has(task.id);
+            });
+        }
+    }
+
+    for (const color of palette) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'task-color-swatch';
+        button.dataset.color = color.value;
+        button.style.backgroundColor = color.value;
+        button.title = color.name;
+        button.setAttribute('aria-label', `${color.name}に変更`);
+        button.addEventListener('click', () => selectColor(color.value));
+        grid.append(button);
+    }
+    const reset = document.createElement('button');
+    reset.type = 'button';
+    reset.className = 'task-color-reset';
+    reset.textContent = '標準に戻す';
+    reset.addEventListener('click', () => selectColor(null));
+    trigger.addEventListener('click', () => showOptions(options.hidden));
+    section.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') {
+            event.preventDefault();
+            showOptions(false);
+            trigger.focus();
+        }
+    });
+    options.append(grid, reset);
+    section.append(trigger, options);
+    showOptions(false);
+    updateSelection();
+    return { section, message };
+}
+
 function createTaskElement(task, total) {
     const item = document.createElement('li');
+    item.className = 'task-item';
     item.dataset.taskId = task.id;
+    item.dataset.progress = task.progress ?? 0;
     const details = document.createElement('details');
-    details.className = 'group overflow-hidden rounded-2xl border border-line bg-card shadow-sm';
+    details.className = 'task-card group overflow-hidden border border-line bg-card shadow-sm';
+    applyTaskColor(details, task.background_color);
 
     const summary = document.createElement('summary');
-    summary.className = 'flex cursor-pointer list-none items-center gap-3 px-4 py-5';
+    summary.className = 'task-drag-area flex list-none items-center gap-3';
 
     const completeCheckbox = document.createElement('input');
     completeCheckbox.type = 'checkbox';
+    completeCheckbox.dataset.taskDragExclude = '';
     completeCheckbox.setAttribute('aria-label', `${task.title}を完了する`);
-    completeCheckbox.className = 'size-6 shrink-0 cursor-pointer rounded border-line accent-progress';
+    completeCheckbox.className = 'task-complete-checkbox size-6 shrink-0 cursor-pointer border-line accent-progress';
     completeCheckbox.addEventListener('click', (event) => {
         event.stopPropagation();
     });
-    completeCheckbox.addEventListener('change', () => completeTask(task.id));
+    completeCheckbox.addEventListener('change', () => {
+        if (completeCheckbox.checked) completeTask(task.id);
+        else cancelTaskCompletion(task.id);
+    });
 
     const title = document.createElement('h3');
     title.className = 'truncate text-lg font-semibold';
     title.textContent = task.title;
 
     const chevron = document.createElement('span');
-    chevron.className = 'grid size-9 shrink-0 place-items-center rounded-full bg-accent text-secondary-ink transition-all group-open:rotate-180';
+    chevron.className = 'task-disclosure grid size-9 shrink-0 cursor-pointer place-items-center bg-accent text-secondary-ink transition-all group-open:rotate-180';
+    chevron.dataset.taskDragExclude = '';
     chevron.setAttribute('aria-hidden', 'true');
     chevron.innerHTML = '<svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m6 9 6 6 6-6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
-    const dragHandle = document.createElement('button');
-    dragHandle.type = 'button';
-    dragHandle.className = 'task-drag-handle grid size-10 shrink-0 place-items-center rounded-lg bg-transparent text-ink disabled:cursor-not-allowed disabled:opacity-30';
-    dragHandle.setAttribute('aria-label', `${task.title}の並べ替えハンドル`);
-    dragHandle.setAttribute('aria-describedby', 'task-order-help');
-    dragHandle.dataset.dragHandle = task.id;
-    dragHandle.disabled = total < 2 || isReordering;
-    dragHandle.innerHTML = '<svg class="size-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="9" cy="5" r="1.5"/><circle cx="15" cy="5" r="1.5"/><circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/><circle cx="9" cy="19" r="1.5"/><circle cx="15" cy="19" r="1.5"/></svg>';
-    dragHandle.addEventListener('click', (event) => {
-        event.preventDefault();
-        event.stopPropagation();
+    summary.dataset.dragEnabled = String(total >= 2 && !isReordering && pendingTaskCompletions.size === 0);
+    summary.setAttribute('aria-describedby', 'task-order-help');
+    summary.addEventListener('keydown', (event) => {
+        if (event.target === summary) moveTaskWithKeyboard(event, item);
     });
-    dragHandle.addEventListener('pointerdown', (event) => startTaskDrag(event, item, dragHandle));
-    dragHandle.addEventListener('keydown', (event) => moveTaskWithKeyboard(event, item));
+    summary.addEventListener('pointerdown', (event) => {
+        summary.dataset.dragMoved = 'false';
+        if (summary.dataset.dragEnabled !== 'true' || isTaskDragExcluded(event, summary)) return;
+        startTaskDrag(event, item, summary);
+    });
+    summary.addEventListener('click', (event) => {
+        // 通常のクリックとキーボードによる開閉は保ち、ドラッグ直後の開閉だけ止める。
+        if (summary.dataset.dragMoved === 'true' && event.detail !== 0) event.preventDefault();
+        summary.dataset.dragMoved = 'false';
+    });
 
     const textArea = document.createElement('div');
     textArea.className = 'min-w-0 flex-1';
     textArea.append(title, createTaskScheduleElement(task));
-    summary.append(completeCheckbox, textArea, dragHandle, chevron);
+    summary.append(completeCheckbox, textArea, chevron);
 
     const detailArea = document.createElement('div');
-    detailArea.className = 'border-t border-line px-5 pb-5 pt-4';
+    detailArea.className = 'task-detail-area border-t border-line';
 
     if (task.content) {
         const content = document.createElement('p');
@@ -412,7 +565,7 @@ function createTaskElement(task, total) {
     }
 
     const progressArea = document.createElement('div');
-    progressArea.className = 'mt-5 rounded-xl bg-accent p-4';
+    progressArea.className = 'task-progress-area mt-5 bg-accent p-4';
 
     const progressHeader = document.createElement('div');
     progressHeader.className = 'mb-3 flex items-center justify-between';
@@ -443,7 +596,7 @@ function createTaskElement(task, total) {
 
     const updateButton = document.createElement('button');
     updateButton.type = 'button';
-    updateButton.className = 'mt-4 w-full rounded-lg bg-main px-3 py-2 text-sm font-semibold text-primary-ink';
+    updateButton.className = 'mt-4 w-full bg-main px-3 py-2 text-sm font-semibold text-primary-ink';
     updateButton.textContent = '進捗を保存';
     updateButton.addEventListener('click', () => {
         updateTask(task.id, Number(progressInput.value));
@@ -453,36 +606,49 @@ function createTaskElement(task, total) {
     progressArea.append(progressHeader, progressInput, updateButton);
 
     const actionArea = document.createElement('div');
-    actionArea.className = 'mt-4 flex justify-start gap-2';
+    actionArea.className = 'task-actions';
 
     const editButton = document.createElement('button');
     editButton.type = 'button';
-    editButton.className = 'rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-secondary-ink';
+    editButton.className = 'bg-accent px-4 py-2 text-sm font-semibold text-secondary-ink';
     editButton.textContent = '編集';
     editButton.addEventListener('click', () => openEditDialog(task));
 
     const deleteButton = document.createElement('button');
     deleteButton.type = 'button';
-    deleteButton.className = 'rounded-lg px-3 py-2 text-sm font-medium text-ink hover:bg-accent';
+    deleteButton.className = 'px-3 py-2 text-sm font-medium text-ink hover:bg-accent';
     deleteButton.textContent = '削除';
     deleteButton.addEventListener('click', () => deleteTask(task.id));
 
-    actionArea.append(editButton, deleteButton);
-    detailArea.append(progressArea, actionArea);
+    const colorControls = createTaskColorControls(task, item);
+    actionArea.append(editButton, deleteButton, colorControls.section);
+    detailArea.append(progressArea, actionArea, colorControls.message);
     details.append(summary, detailArea);
     item.append(details);
+    updateTaskCompletionState(item);
     return item;
 }
 
 async function getTasks() {
+    const version = taskDataVersion;
     const result = await requestJson('/api/get_tasks.php');
+    // 完了確定前に取得した一覧で、確定済みのタスクを再表示しない。
+    if (version !== taskDataVersion) {
+        if (!appShell.classList.contains('hidden')) await getTasks();
+        return;
+    }
+    tasks = result.data;
+    renderTasks();
+}
+
+function renderTasks() {
     if (dragState) {
         cancelTaskDrag({});
     }
     taskList.replaceChildren();
-    taskCount.textContent = `${result.data.length}件`;
+    taskCount.textContent = `${tasks.length}件`;
 
-    if (result.data.length === 0) {
+    if (tasks.length === 0) {
         const emptyItem = document.createElement('p');
         emptyItem.className = 'rounded-2xl border border-dashed border-line bg-card p-8 text-center text-ink';
         emptyItem.textContent = 'TODOはまだありません。';
@@ -490,7 +656,7 @@ async function getTasks() {
         return;
     }
 
-    for (const group of taskSchedule.groupByDate(result.data)) {
+    for (const group of taskSchedule.groupByDate(tasks)) {
         const section = document.createElement('section');
         section.className = 'space-y-3';
         const heading = document.createElement('h2');
@@ -502,6 +668,7 @@ async function getTasks() {
         label.textContent = taskSchedule.dateLabel(group.date);
         const count = document.createElement('span');
         count.className = 'shrink-0 text-sm font-medium';
+        count.dataset.taskGroupCount = '';
         count.textContent = `${group.tasks.length}件`;
         heading.append(label, count);
         const list = document.createElement('ul');
@@ -531,7 +698,7 @@ async function saveTaskOrder(originalOrder, movedId) {
         return;
     }
     isReordering = true;
-    taskList.querySelectorAll('[data-drag-handle]').forEach((button) => { button.disabled = true; });
+    updateTaskDragAreas();
     try {
         await requestJson('/api/reorder_task.php', {
             method: 'PATCH',
@@ -551,18 +718,14 @@ async function saveTaskOrder(originalOrder, movedId) {
         showMessage(error.message, true);
     } finally {
         isReordering = false;
-        taskList.querySelectorAll('[data-drag-handle]').forEach((button) => {
-            button.disabled = button.closest('[data-task-date]').children.length < 2;
-        });
-        const button = taskList.querySelector(`[data-drag-handle="${movedId}"]`);
-        if (button && !button.disabled) {
-            button.focus();
-        }
+        updateTaskDragAreas();
+        const summary = taskList.querySelector(`[data-task-id="${movedId}"]`)?.querySelector('summary');
+        if (summary?.dataset.dragEnabled === 'true') summary.focus();
     }
 }
 
 function moveTaskWithKeyboard(event, item) {
-    if (!['ArrowUp', 'ArrowDown'].includes(event.key) || isReordering || dragState) {
+    if (!['ArrowUp', 'ArrowDown'].includes(event.key) || isReordering || dragState || pendingTaskCompletions.size > 0) {
         return;
     }
     event.preventDefault();
@@ -576,19 +739,27 @@ function moveTaskWithKeyboard(event, item) {
     saveTaskOrder(originalOrder, Number(item.dataset.taskId));
 }
 
-function startTaskDrag(event, item, handle) {
-    if (event.button !== 0 || !event.isPrimary || isReordering || dragState) {
+function isTaskDragExcluded(event, summary) {
+    const padding = 12;
+    return [...summary.querySelectorAll('[data-task-drag-exclude]')].some((control) => {
+        const rectangle = control.getBoundingClientRect();
+        return event.clientX >= rectangle.left - padding && event.clientX <= rectangle.right + padding
+            && event.clientY >= rectangle.top - padding && event.clientY <= rectangle.bottom + padding;
+    });
+}
+
+function startTaskDrag(event, item, summary) {
+    if (event.button !== 0 || !event.isPrimary || isReordering || dragState || pendingTaskCompletions.size > 0) {
         return;
     }
-    event.preventDefault();
+    // 移動するまでは既定動作を止めず、見出しのクリックで詳細を開閉できるようにする。
     event.stopPropagation();
     const rectangle = item.getBoundingClientRect();
     dragState = {
-        item, handle, list: item.parentElement, pointerId: event.pointerId, originalOrder: taskOrder(),
+        item, summary, list: item.parentElement, pointerId: event.pointerId, originalOrder: taskOrder(),
         startY: event.clientY, pointerY: event.clientY, offsetY: event.clientY - rectangle.top,
         preview: null, scrollFrame: null, previousUserSelect: document.body.style.userSelect,
     };
-    handle.setPointerCapture(event.pointerId);
     document.addEventListener('pointermove', moveTaskDrag);
     document.addEventListener('pointerup', finishTaskDrag);
     document.addEventListener('pointercancel', cancelTaskDrag);
@@ -603,6 +774,8 @@ function moveTaskDrag(event) {
     if (!dragState.preview && Math.abs(event.clientY - dragState.startY) < 5) {
         return;
     }
+    event.preventDefault();
+    dragState.summary.dataset.dragMoved = 'true';
     if (!dragState.preview) {
         const rectangle = dragState.item.getBoundingClientRect();
         const preview = dragState.item.cloneNode(true);
@@ -617,6 +790,7 @@ function moveTaskDrag(event) {
         dragState.preview = preview;
         dragState.item.classList.add('task-drag-placeholder');
         document.body.style.userSelect = 'none';
+        dragState.summary.setPointerCapture(event.pointerId);
         dragState.scrollFrame = requestAnimationFrame(scrollDuringTaskDrag);
     }
     dragState.preview.style.top = `${event.clientY - dragState.offsetY}px`;
@@ -635,7 +809,7 @@ function placeDraggedTask() {
     if (item.nextElementSibling !== (nextItem ?? null)) {
         list.insertBefore(item, nextItem ?? null);
         // DOM内で移動したハンドルも引き続きポインターを追跡する。
-        dragState.handle.setPointerCapture(dragState.pointerId);
+        dragState.summary.setPointerCapture(dragState.pointerId);
     }
 }
 
@@ -666,8 +840,8 @@ function endTaskDrag() {
     state.preview?.remove();
     state.item.classList.remove('task-drag-placeholder');
     document.body.style.userSelect = state.previousUserSelect;
-    if (state.handle.hasPointerCapture(state.pointerId)) {
-        state.handle.releasePointerCapture(state.pointerId);
+    if (state.summary.hasPointerCapture(state.pointerId)) {
+        state.summary.releasePointerCapture(state.pointerId);
     }
     return state;
 }
@@ -699,13 +873,14 @@ function cancelTaskDragWithEscape(event) {
 
 function createCompletedTaskElement(task) {
     const item = document.createElement('li');
-    item.className = 'rounded-2xl border border-line bg-card p-5 shadow-sm';
+    item.className = 'task-card task-archive-card border border-line bg-card shadow-sm';
+    applyTaskColor(item, task.background_color);
 
     const heading = document.createElement('div');
     heading.className = 'flex items-start gap-3';
 
     const checkIcon = document.createElement('span');
-    checkIcon.className = 'grid size-7 shrink-0 place-items-center rounded-full bg-main text-primary-ink';
+    checkIcon.className = 'task-status-icon grid size-7 shrink-0 place-items-center bg-main text-primary-ink';
     checkIcon.innerHTML = '<svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="m5 12 4 4L19 6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
     const textArea = document.createElement('div');
@@ -732,7 +907,7 @@ function createCompletedTaskElement(task) {
     heading.append(checkIcon, textArea);
     const restoreButton = document.createElement('button');
     restoreButton.type = 'button';
-    restoreButton.className = 'mt-4 rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-secondary-ink disabled:opacity-50';
+    restoreButton.className = 'mt-4 bg-accent px-4 py-2 text-sm font-semibold text-secondary-ink disabled:opacity-50';
     restoreButton.textContent = 'TODOに戻す';
     restoreButton.setAttribute('aria-label', `${task.title}をTODOに戻す`);
     restoreButton.addEventListener('click', () => restoreTask(task.id, restoreButton));
@@ -822,13 +997,18 @@ async function addTask(task) {
 }
 
 async function updateTask(id, progress) {
+    if (pendingTaskCompletions.has(id)) return;
+    if (progress === 100) {
+        openTaskCompletionDialog(id);
+        return;
+    }
     try {
         await requestJson('/api/update_task.php', {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ id, progress }),
         });
-        showMessage(progress === 100 ? 'TODOを完了しました。' : '進捗率を更新しました。');
+        showMessage('進捗率を更新しました。');
         await getTasks();
     } catch (error) {
         showMessage(error.message, true);
@@ -851,24 +1031,185 @@ function openEditDialog(task) {
     document.querySelector('#edit-task-type').value = taskSchedule.typeOf(task);
     document.querySelector('#edit-starts-at').value = toDateTimeLocalValue(task.starts_at);
     document.querySelector('#edit-scheduled-at').value = toDateTimeLocalValue(task.scheduled_at);
+    taskRecurrence.fillForm(editTaskForm, task);
     updateTaskFormState(editTaskForm);
     editTaskDialog.showModal();
     document.querySelector('#edit-title').focus();
 }
 
-async function completeTask(id) {
+function updateTaskDragAreas() {
+    taskList.querySelectorAll('.task-drag-area').forEach((summary) => {
+        const enabled = !isReordering && pendingTaskCompletions.size === 0
+            && summary.closest('[data-task-date]').children.length >= 2;
+        summary.dataset.dragEnabled = String(enabled);
+    });
+}
+
+function updateTaskCompletionState(item) {
+    const pending = pendingTaskCompletions.get(Number(item.dataset.taskId));
+    item.classList.toggle('task-completion-pending', Boolean(pending?.animate));
+    const checkbox = item.querySelector('input[type="checkbox"]');
+    checkbox.checked = Boolean(pending);
+    checkbox.disabled = pending?.saving ?? false;
+    const title = item.querySelector('h3').textContent;
+    checkbox.setAttribute('aria-label', pending ? `${title}の完了を取り消す` : `${title}を完了する`);
+    checkbox.title = pending && !pending.saving ? '2.5秒以内にチェックを外すと、完了を取り消せます。' : '';
+    item.querySelectorAll('input[type="range"], button').forEach((control) => {
+        control.disabled = Boolean(pending) || control.closest('.task-color-section')?.dataset.saving === 'true';
+    });
+    const progress = pending ? 100 : Number(item.dataset.progress);
+    const progressInput = item.querySelector('.progress-range');
+    progressInput.value = progress;
+    progressInput.style.setProperty('--progress', `${progress}%`);
+    item.querySelector('output').textContent = `${progress}%`;
+}
+
+function refreshTaskCompletionState(id) {
+    const item = taskList.querySelector(`[data-task-id="${id}"]`);
+    if (item) updateTaskCompletionState(item);
+    updateTaskDragAreas();
+}
+
+function completeTask(id) {
+    if (pendingTaskCompletions.has(id)) return;
+    if (dragState) cancelTaskDrag({});
+    // 猶予中はAPIへ送らず、取り消し時に進捗や並び順をそのまま保つ。
+    const pending = { timer: null, saving: false, animate: true };
+    pendingTaskCompletions.set(id, pending);
+    pending.timer = setTimeout(() => saveTaskCompletion(id, pending), taskCompletionDelay);
+    refreshTaskCompletionState(id);
+    showMessage('2.5秒以内にチェックを外すと、完了を取り消せます。');
+}
+
+function cancelTaskCompletion(id) {
+    const pending = pendingTaskCompletions.get(id);
+    if (!pending || pending.saving) return;
+    clearTimeout(pending.timer);
+    pendingTaskCompletions.delete(id);
+    refreshTaskCompletionState(id);
+    showMessage('完了を取り消しました。');
+}
+
+async function saveTaskCompletion(id, pending) {
+    if (pendingTaskCompletions.get(id) !== pending) return false;
+    pending.saving = true;
+    refreshTaskCompletionState(id);
     try {
-        await requestJson('/api/complete_task.php', {
+        const result = await requestJson('/api/complete_task.php', {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ id }),
         });
-        showMessage('TODOを完了しました。');
-        await getTasks();
+        pending.nextTask = result.next_task ?? null;
     } catch (error) {
-        showMessage(error.message, true);
+        if (pendingTaskCompletions.get(id) !== pending) return false;
+        pendingTaskCompletions.delete(id);
+        refreshTaskCompletionState(id);
+        pending.error = error.message;
+        if (!completionDialog.open) showMessage(error.message, true);
+        return false;
+    }
+    // ログアウト後に届いた応答は、次のアカウントの画面に反映しない。
+    if (pendingTaskCompletions.get(id) !== pending) return false;
+    taskDataVersion++;
+    tasks = tasks.filter(task => task.id !== id);
+    if (pending.nextTask) tasks.push(pending.nextTask);
+    const item = taskList.querySelector(`[data-task-id="${id}"]`);
+    if (pending.animate && item && currentPage === 'todo'
+        && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        // 高さを固定してから縮め、後続のカードも滑らかに詰める。
+        item.style.height = `${item.getBoundingClientRect().height}px`;
+        item.style.setProperty('--task-removal-duration', `${taskRemovalDuration}ms`);
+        item.getBoundingClientRect();
+        item.classList.add('task-removing');
+        item.style.height = '0px';
+        pending.timer = setTimeout(() => finishTaskCompletion(id, pending), taskRemovalDuration);
+        item.addEventListener('transitionend', (event) => {
+            if (event.target === item && event.propertyName === 'height') finishTaskCompletion(id, pending);
+        });
+    } else {
+        await finishTaskCompletion(id, pending);
+    }
+    return true;
+}
+
+async function finishTaskCompletion(id, pending) {
+    if (pendingTaskCompletions.get(id) !== pending) return;
+    clearTimeout(pending.timer);
+    pendingTaskCompletions.delete(id);
+    // 他のカードの開閉状態や、同時に進行している消去アニメーションを保つ。
+    const item = taskList.querySelector(`[data-task-id="${id}"]`);
+    if (item) {
+        const list = item.parentElement;
+        const section = list.parentElement;
+        item.remove();
+        if (list.children.length === 0) section.remove();
+        else section.querySelector('[data-task-group-count]').textContent = `${list.children.length}件`;
+    }
+    const remaining = taskList.querySelectorAll('[data-task-id]').length;
+    taskCount.textContent = `${remaining}件`;
+    if (remaining === 0 || pending.nextTask) renderTasks();
+    else updateTaskDragAreas();
+    if (currentPage === 'todo') showMessage(pending.nextTask ? 'TODOを完了し、次回分を作成しました。' : 'TODOを完了しました。');
+    if (currentPage === 'archive') {
+        try {
+            await getCompletedTasks(pageRequestId);
+        } catch (error) {
+            showMessage(error.message, true);
+        }
     }
 }
+
+function openTaskCompletionDialog(id) {
+    const task = tasks.find(task => task.id === id);
+    if (!task || taskCompletionConfirmation) return;
+    taskCompletionConfirmation = { id, saving: false };
+    completionTaskTitle.textContent = task.title;
+    completionMessage.textContent = '';
+    completionDialog.showModal();
+    cancelCompletionButton.focus();
+}
+
+function closeTaskCompletionDialog() {
+    const confirmation = taskCompletionConfirmation;
+    taskCompletionConfirmation = null;
+    if (completionDialog.open) completionDialog.close();
+    completionMessage.textContent = '';
+    cancelCompletionButton.disabled = false;
+    confirmCompletionButton.disabled = false;
+    if (confirmation) refreshTaskCompletionState(confirmation.id);
+}
+
+cancelCompletionButton.addEventListener('click', closeTaskCompletionDialog);
+completionDialog.addEventListener('cancel', (event) => {
+    event.preventDefault();
+    if (!taskCompletionConfirmation?.saving) closeTaskCompletionDialog();
+});
+completionDialog.addEventListener('click', (event) => {
+    if (event.target === completionDialog && !taskCompletionConfirmation?.saving) closeTaskCompletionDialog();
+});
+completionForm.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const confirmation = taskCompletionConfirmation;
+    if (!confirmation || confirmation.saving || pendingTaskCompletions.has(confirmation.id)) return;
+    confirmation.saving = true;
+    cancelCompletionButton.disabled = true;
+    confirmCompletionButton.disabled = true;
+    completionMessage.textContent = '完了を保存しています。';
+    // ポップアップで確定した場合は猶予やアニメーションを挟まない。
+    const pending = { timer: null, saving: true, animate: false };
+    pendingTaskCompletions.set(confirmation.id, pending);
+    const saved = await saveTaskCompletion(confirmation.id, pending);
+    if (taskCompletionConfirmation !== confirmation) return;
+    if (saved) {
+        closeTaskCompletionDialog();
+    } else {
+        confirmation.saving = false;
+        cancelCompletionButton.disabled = false;
+        confirmCompletionButton.disabled = false;
+        completionMessage.textContent = pending.error ?? 'TODOを完了できませんでした。';
+    }
+});
 
 async function deleteTask(id) {
     try {
@@ -896,6 +1237,7 @@ taskForm.addEventListener('submit', async (event) => {
     try {
         await addTask(taskFormPayload(taskForm));
         taskForm.reset();
+        taskRecurrence.fillForm(taskForm);
         updateTaskFormState(taskForm);
         taskDialog.close();
         showMessage('TODOを追加しました。');

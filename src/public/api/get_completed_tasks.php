@@ -28,7 +28,7 @@ try {
     /** @var PDO $pdo */
     $pdo = require dirname(__DIR__, 2) . '/app/db.php';
     $statement = $pdo->prepare(
-        'SELECT id, title, content, completed, progress, task_type, starts_at, scheduled_at, created_at, updated_at,
+        'SELECT id, title, content, completed, progress, background_color, task_type, starts_at, scheduled_at, repeat_type, repeat_day, repeat_time, repeat_timezone, created_at, updated_at,
                 COALESCE(completed_at, updated_at) AS completed_at
          FROM tasks
          WHERE user_id = :user_id AND completed = TRUE

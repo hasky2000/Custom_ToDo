@@ -63,6 +63,7 @@ function createScreen() {
         window: { location: { hash: '#account' }, addEventListener() {}, scrollTo() {} },
         setInterval() {},
         taskSchedule: require('../src/public/assets/task-schedule.js'),
+        taskRecurrence: require('../src/public/assets/task-recurrence.js'),
         FormData: class {
             get(name) {
                 const selectors = {

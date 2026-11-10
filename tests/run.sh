@@ -4,8 +4,9 @@ cd "$(dirname "$0")/.."
 
 test_suite="${1:-api}"
 case "$test_suite" in
+    recurrence) docker compose exec -T php php < tests/task-recurrence.php; exit ;;
     api|appearance) ;;
-    *) echo '使用方法: bash tests/run.sh [api|appearance]' >&2; exit 2 ;;
+    *) echo '使用方法: bash tests/run.sh [api|appearance|recurrence]' >&2; exit 2 ;;
 esac
 
 # 開発中のデータには触れず、検証専用のDBを毎回作成する。

@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+require_once __DIR__ . '/task_recurrence.php';
+
 // PHPのtrim()では除去されない全角スペースなども、入力の前後から取り除く。
 function trimTaskText(string $value): string
 {
@@ -80,5 +82,5 @@ function normalizeTaskInput(array $input, ?array $existingTask = null): array
         'title' => $title, 'content' => $content, 'task_type' => $taskType,
         'starts_at' => $startsAt?->format('Y-m-d\TH:i:s.uP'),
         'scheduled_at' => $scheduledAt?->format('Y-m-d\TH:i:s.uP'),
-    ];
+    ] + normalizeTaskRecurrence($input, $existingTask);
 }

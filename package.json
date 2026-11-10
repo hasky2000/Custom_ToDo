@@ -3,6 +3,10 @@
   "private": true,
   "scripts": {
     "test:task-schedule": "node tests/task-schedule.test.cjs",
+    "test:task-completion": "node tests/task-completion.test.cjs",
+    "test:task-drag": "node tests/task-drag.test.cjs",
+    "test:task-colors": "node tests/task-colors.test.cjs",
+    "test:task-recurrence": "node tests/task-recurrence.test.cjs",
     "test:settings-sharing": "node tests/settings-sharing.test.cjs && node tests/settings-undo.test.cjs",
     "test:password-change": "node tests/password-change.test.cjs",
     "dev": "tailwindcss -i ./src/css/input.css -o ./src/public/assets/app.css --watch=always",

@@ -67,7 +67,7 @@
     border: var(--appearance-card-border-width) solid var(--theme-border);
 }
 
-.theme-app button:not(.task-drag-handle),
+.theme-app button,
 .theme-app .appearance-preview-button {
     border: var(--appearance-button-border-width) solid var(--theme-border);
 }
@@ -343,6 +343,34 @@ summary:focus-visible {
     overflow-wrap: anywhere;
 }
 
+.task-repeat-label {
+    margin-top: 0.35rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    overflow-wrap: anywhere;
+}
+
+.theme-app button.task-repeat-toggle {
+    padding: 0.6rem 1rem;
+    border-radius: 8px;
+    background: var(--theme-secondary);
+    color: var(--theme-secondary_text);
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.theme-app button.task-repeat-toggle[aria-pressed='true'] {
+    background: var(--theme-primary);
+    color: var(--theme-primary_text);
+}
+
+.task-repeat-settings {
+    margin-top: 0.75rem;
+    padding: 1rem;
+    border: 1px solid var(--theme-border);
+    border-radius: 8px;
+}
+
 summary::-webkit-details-marker {
     display: none;
 }
@@ -351,14 +379,201 @@ dialog::backdrop {
     background: var(--color-backdrop);
 }
 
-.task-drag-handle {
-    touch-action: none;
-    cursor: grab;
-    background: transparent;
+.task-item {
+    transition: opacity 200ms ease, transform 200ms ease,
+        height var(--task-removal-duration, 200ms) ease, margin 200ms ease;
 }
 
-.task-drag-handle:active {
+.task-completion-pending {
+    opacity: 0.5;
+}
+
+.task-removing {
+    opacity: 0;
+    transform: translateX(1rem);
+    overflow: hidden;
+    pointer-events: none;
+    margin-block: 0 !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .task-item {
+        transition: none;
+    }
+}
+
+.task-drag-area {
+    cursor: pointer;
+}
+
+.task-drag-area[data-drag-enabled='true'] {
+    touch-action: none;
+    user-select: none;
+    cursor: grab;
+}
+
+.task-drag-area[data-drag-enabled='true']:active {
     cursor: grabbing;
+}
+
+/* ラインより小さい角丸と、ラインから独立した内側の余白を共通で使う。 */
+.task-card {
+    --task-line-width: 12px;
+    --task-card-radius: 8px;
+    --task-card-padding: 20px;
+    border-radius: var(--task-card-radius);
+}
+
+.task-card :is(button, .task-complete-checkbox, .task-disclosure, .task-status-icon, .task-progress-area, .task-kind, .task-color-options) {
+    border-radius: var(--task-card-radius);
+}
+
+/* 標準チェックボックスの描画に角丸を上書きされないようにする。 */
+.theme-app .task-card .task-complete-checkbox {
+    appearance: none;
+    display: grid;
+    place-content: center;
+    border: 1px solid var(--theme-text);
+    background: var(--theme-input);
+}
+
+.task-complete-checkbox::before {
+    content: '';
+    width: 12px;
+    height: 7px;
+    border-left: 2px solid var(--theme-text);
+    border-bottom: 2px solid var(--theme-text);
+    transform: translateY(-2px) rotate(-45deg);
+    visibility: hidden;
+}
+
+.theme-app .task-card .task-complete-checkbox:checked {
+    background: var(--theme-progress);
+}
+
+.task-complete-checkbox:checked::before {
+    visibility: visible;
+}
+
+.task-complete-checkbox:focus-visible {
+    outline: 2px solid var(--theme-text);
+    outline-offset: 3px;
+}
+
+.task-card > .task-drag-area {
+    padding: var(--task-card-padding);
+}
+
+.task-card > .task-detail-area {
+    padding: 1rem var(--task-card-padding) var(--task-card-padding);
+}
+
+.task-archive-card {
+    padding: var(--task-card-padding);
+}
+
+.task-card.task-colored-card > :is(.task-drag-area, .task-detail-area),
+.task-archive-card.task-colored-card {
+    padding-left: calc(var(--task-line-width) + var(--task-card-padding));
+}
+
+.task-colored-card {
+    position: relative;
+    overflow: hidden;
+}
+
+.task-colored-card::before {
+    content: '';
+    position: absolute;
+    inset: 0 auto 0 0;
+    z-index: 1;
+    width: var(--task-line-width);
+    background: var(--task-line-color);
+    pointer-events: none;
+}
+
+.task-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 1rem;
+}
+
+.task-color-section {
+    position: relative;
+    flex-shrink: 0;
+    margin-left: auto;
+}
+
+.theme-app button.task-color-trigger,
+.theme-app button.task-color-swatch {
+    display: grid;
+    width: 2rem;
+    height: 2rem;
+    place-items: center;
+    padding: 0;
+    border: 1px solid #94A3B8;
+    border-radius: var(--task-card-radius);
+    color: #1F2937;
+    font-size: 1rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.task-color-trigger:focus-visible,
+.task-color-swatch:focus-visible {
+    outline: 2px solid currentColor;
+    outline-offset: 3px;
+}
+
+.task-color-options {
+    position: absolute;
+    right: 0;
+    bottom: calc(100% + 0.5rem);
+    z-index: 5;
+    width: max-content;
+    padding: 0.75rem;
+    border: 1px solid var(--theme-border);
+    border-radius: var(--task-card-radius);
+    background: var(--theme-card);
+    box-shadow: 0 4px 16px var(--color-shadow);
+}
+
+.task-color-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 2rem);
+    gap: 0.5rem;
+}
+
+.theme-app button.task-color-swatch[aria-pressed='true'] {
+    outline: 2px solid #1F2937;
+    outline-offset: 2px;
+}
+
+.theme-app button.task-color-reset {
+    margin-top: 0.75rem;
+    padding: 0.35rem 0.75rem;
+    border-radius: var(--task-card-radius);
+    background: var(--theme-secondary);
+    color: var(--theme-secondary_text);
+    font-size: 0.75rem;
+    cursor: pointer;
+}
+
+.task-color-section button:disabled {
+    opacity: 0.5;
+    cursor: wait;
+}
+
+.task-color-message {
+    margin-top: 0.5rem;
+    font-size: 0.75rem;
+    text-align: right;
+    overflow-wrap: anywhere;
+}
+
+.task-color-message:empty {
+    display: none;
 }
 
 .task-drag-placeholder {
@@ -372,7 +587,7 @@ dialog::backdrop {
     list-style: none;
     pointer-events: none;
     box-shadow: 0 12px 30px var(--color-shadow);
-    border-radius: 1rem;
+    border-radius: 8px;
 }
 
 .task-add-button {
@@ -386,7 +601,7 @@ dialog::backdrop {
 .progress-range {
     appearance: none;
     height: 0.55rem;
-    border-radius: 9999px;
+    border-radius: var(--task-card-radius, 8px);
     background: linear-gradient(
         to right,
         var(--theme-progress) 0 var(--progress),
@@ -399,7 +614,7 @@ dialog::backdrop {
     width: 1.35rem;
     height: 1.35rem;
     border: 3px solid var(--theme-input);
-    border-radius: 9999px;
+    border-radius: var(--task-card-radius, 8px);
     background: var(--theme-progress);
     box-shadow: 0 2px 8px var(--color-shadow);
 }
@@ -408,7 +623,7 @@ dialog::backdrop {
     width: 1.1rem;
     height: 1.1rem;
     border: 3px solid var(--theme-input);
-    border-radius: 9999px;
+    border-radius: var(--task-card-radius, 8px);
     background: var(--theme-progress);
     box-shadow: 0 2px 8px var(--color-shadow);
 }

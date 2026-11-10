@@ -2,6 +2,8 @@
 // 画面・CSS・JavaScriptの更新が別々にキャッシュされないようにする。
 header('Cache-Control: no-cache');
 require_once dirname(__DIR__) . '/app/color_templates.php';
+require_once dirname(__DIR__) . '/app/task_colors.php';
+require_once dirname(__DIR__) . '/app/task_recurrence_form.php';
 $colorTemplates = colorTemplateCatalog();
 $defaultColorTemplate = defaultColorTemplate();
 $appScriptVersion = filemtime(__DIR__ . '/assets/app.js');
@@ -10,6 +12,7 @@ $colorScriptVersion = filemtime(__DIR__ . '/assets/colors.js');
 $paletteScriptVersion = filemtime(__DIR__ . '/assets/palette-format.js');
 $queueScriptVersion = filemtime(__DIR__ . '/assets/settings-save-queue.js');
 $scheduleScriptVersion = filemtime(__DIR__ . '/assets/task-schedule.js');
+$recurrenceScriptVersion = filemtime(__DIR__ . '/assets/task-recurrence.js');
 ?>
 <!doctype html>
 <html lang="ja" class="initializing">
@@ -26,6 +29,7 @@ $scheduleScriptVersion = filemtime(__DIR__ . '/assets/task-schedule.js');
         }
     </style>
     <script id="color-template-data" type="application/json"><?= json_encode($colorTemplates, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_THROW_ON_ERROR) ?></script>
+    <script id="task-color-palette" type="application/json"><?= json_encode(taskColorPalette(), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_THROW_ON_ERROR) ?></script>
     <title>Custom ToDo</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -65,6 +69,7 @@ $scheduleScriptVersion = filemtime(__DIR__ . '/assets/task-schedule.js');
     <script src="/assets/settings-save-queue.js?v=<?= $queueScriptVersion ?>" defer></script>
     <script src="/assets/colors.js?v=<?= $colorScriptVersion ?>" defer></script>
     <script src="/assets/task-schedule.js?v=<?= $scheduleScriptVersion ?>" defer></script>
+    <script src="/assets/task-recurrence.js?v=<?= $recurrenceScriptVersion ?>" defer></script>
     <script src="/assets/app.js?v=<?= $appScriptVersion ?>" defer></script>
 </head>
 <body class="theme-app min-h-screen bg-page font-sans text-ink">
@@ -167,7 +172,7 @@ $scheduleScriptVersion = filemtime(__DIR__ . '/assets/task-schedule.js');
 
             <section id="todo-page" aria-labelledby="page-title">
                 <div class="mb-4 flex items-start justify-between gap-3">
-                    <p id="task-order-help" class="min-w-0 flex-1 text-sm text-ink">締切日ごとに表示します。<br>同じ日付の中でドラッグして並べ替えできます。</p>
+                    <p id="task-order-help" class="min-w-0 flex-1 text-sm text-ink">締切日ごとに表示します。<br>見出しをドラッグして同じ日付の中で並べ替えできます。<br>見出しにフォーカスして↑↓キーでも移動できます。</p>
                     <span id="task-count" class="shrink-0 text-sm text-ink"></span>
                 </div>
                 <div id="task-list" class="space-y-6"></div>
@@ -425,6 +430,22 @@ $scheduleScriptVersion = filemtime(__DIR__ . '/assets/task-schedule.js');
         </nav>
     </div>
 
+    <dialog id="completion-dialog" aria-labelledby="completion-heading" aria-describedby="completion-description"
+        class="w-[calc(100%-2rem)] max-w-md rounded-2xl bg-card p-0 text-ink shadow-2xl">
+        <form id="completion-form" class="space-y-4 p-6">
+            <h2 id="completion-heading" class="text-xl font-bold">タスクを完了しますか？</h2>
+            <p id="completion-task-title" class="task-content font-semibold"></p>
+            <p id="completion-description" class="text-sm leading-6">完了するとホームから消え、アーカイブに移動します。</p>
+            <p id="completion-message" class="text-sm font-semibold" role="status"></p>
+            <div class="flex justify-end gap-3">
+                <button id="cancel-completion" type="button" autofocus
+                    class="rounded-lg bg-accent px-4 py-3 text-sm font-semibold text-secondary-ink disabled:opacity-50">キャンセル</button>
+                <button id="confirm-completion" type="submit"
+                    class="rounded-lg bg-main px-4 py-3 text-sm font-semibold text-primary-ink disabled:opacity-50">完了する</button>
+            </div>
+        </form>
+    </dialog>
+
     <dialog id="task-dialog" class="w-[calc(100%-2rem)] max-w-md rounded-2xl bg-card p-0 text-ink shadow-2xl">
         <form id="task-form" class="space-y-4 p-6" novalidate>
             <div class="flex items-center justify-between">
@@ -469,6 +490,7 @@ $scheduleScriptVersion = filemtime(__DIR__ . '/assets/task-schedule.js');
                     class="mt-1 w-full rounded-lg border border-line bg-field px-3 py-2 focus:border-main focus:outline-none focus:ring-2 focus:ring-accent">
             </div>
 
+            <?php renderTaskRecurrenceFields(''); ?>
             <p id="task-form-message" data-task-form-message class="min-h-6 text-sm font-semibold" role="status">タイトルを入力してください。空白のみでは登録できません。</p>
 
             <button type="submit" disabled class="task-submit-button w-full rounded-lg bg-main px-4 py-3 font-semibold text-primary-ink">
@@ -523,6 +545,7 @@ $scheduleScriptVersion = filemtime(__DIR__ . '/assets/task-schedule.js');
                     class="mt-1 w-full rounded-lg border border-line bg-field px-3 py-2 focus:border-main focus:outline-none focus:ring-2 focus:ring-accent">
             </div>
 
+            <?php renderTaskRecurrenceFields('edit-'); ?>
             <p id="edit-task-form-message" data-task-form-message class="min-h-6 text-sm font-semibold" role="status"></p>
 
             <button type="submit" class="task-submit-button w-full rounded-lg bg-main px-4 py-3 font-semibold text-primary-ink">

@@ -44,9 +44,11 @@ try {
     $pdo->beginTransaction();
     lockTaskOrder($pdo, $userId);
 
-    $sql = 'INSERT INTO tasks (user_id, title, content, task_type, starts_at, scheduled_at, sort_order)
-            VALUES (:user_id, :title, :content, :task_type, :starts_at, :scheduled_at, :sort_order)
-            RETURNING id, title, content, completed, progress, task_type, starts_at, scheduled_at, created_at, updated_at';
+    $sql = 'INSERT INTO tasks (user_id, title, content, task_type, starts_at, scheduled_at, sort_order,
+                              repeat_type, repeat_day, repeat_time, repeat_timezone)
+            VALUES (:user_id, :title, :content, :task_type, :starts_at, :scheduled_at, :sort_order,
+                    :repeat_type, :repeat_day, :repeat_time, :repeat_timezone)
+            RETURNING id, title, content, completed, progress, background_color, task_type, starts_at, scheduled_at, repeat_type, repeat_day, repeat_time, repeat_timezone, created_at, updated_at';
     $statement = $pdo->prepare($sql);
     $statement->execute([
         ':user_id' => $userId,
@@ -56,6 +58,10 @@ try {
         ':starts_at' => $taskInput['starts_at'],
         ':scheduled_at' => $scheduledAt,
         ':sort_order' => nextTaskOrder($pdo, $userId),
+        ':repeat_type' => $taskInput['repeat_type'],
+        ':repeat_day' => $taskInput['repeat_day'],
+        ':repeat_time' => $taskInput['repeat_time'],
+        ':repeat_timezone' => $taskInput['repeat_timezone'],
     ]);
 
     $task = $statement->fetch();

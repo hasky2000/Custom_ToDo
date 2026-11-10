@@ -40,21 +40,23 @@ try {
 
     /** @var PDO $pdo */
     $pdo = require dirname(__DIR__, 2) . '/app/db.php';
+    if ($progress === 100) {
+        require_once dirname(__DIR__, 2) . '/app/task_recurrence.php';
+        $result = completeTaskAndRepeat($pdo, $userId, $id);
+        if ($result === null) respond(['error' => '更新できるTODOが見つかりません。'], 404);
+        respond($result, 200);
+    }
     $statement = $pdo->prepare(
         'UPDATE tasks
          SET progress = :progress,
-             completed = CASE WHEN :completion_progress = 100 THEN TRUE ELSE completed END,
-             completed_at = CASE WHEN :archive_progress = 100 THEN CURRENT_TIMESTAMP ELSE completed_at END,
              updated_at = CURRENT_TIMESTAMP
          WHERE id = :id AND user_id = :user_id AND completed = FALSE
-         RETURNING id, title, content, completed, progress, task_type, starts_at, scheduled_at, created_at, updated_at'
+         RETURNING id, title, content, completed, progress, background_color, task_type, starts_at, scheduled_at, repeat_type, repeat_day, repeat_time, repeat_timezone, created_at, updated_at'
     );
     $statement->execute([
         ':id' => $id,
         ':user_id' => $userId,
         ':progress' => $progress,
-        ':completion_progress' => $progress,
-        ':archive_progress' => $progress,
     ]);
     $updatedTask = $statement->fetch();
 

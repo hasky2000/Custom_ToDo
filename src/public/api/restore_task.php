@@ -45,7 +45,7 @@ try {
              sort_order = :sort_order,
              updated_at = CURRENT_TIMESTAMP
          WHERE id = :id AND user_id = :user_id AND completed = TRUE
-         RETURNING id, title, content, completed, progress, task_type, starts_at, scheduled_at, created_at, updated_at'
+         RETURNING id, title, content, completed, progress, background_color, task_type, starts_at, scheduled_at, repeat_type, repeat_day, repeat_time, repeat_timezone, created_at, updated_at'
     );
     $statement->execute([
         ':id' => $id,

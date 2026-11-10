@@ -1,0 +1,18 @@
+[
+    { "name": "ホワイト", "value": "#FFFFFF" },
+    { "name": "グレー", "value": "#E5E7EB" },
+    { "name": "レッド", "value": "#FECACA" },
+    { "name": "オレンジ", "value": "#FED7AA" },
+    { "name": "イエロー", "value": "#FEF08A" },
+    { "name": "ライム", "value": "#D9F99D" },
+    { "name": "グリーン", "value": "#BBF7D0" },
+    { "name": "ミント", "value": "#A7F3D0" },
+    { "name": "ターコイズ", "value": "#99F6E4" },
+    { "name": "シアン", "value": "#A5F3FC" },
+    { "name": "スカイブルー", "value": "#BAE6FD" },
+    { "name": "ブルー", "value": "#BFDBFE" },
+    { "name": "インディゴ", "value": "#C7D2FE" },
+    { "name": "バイオレット", "value": "#DDD6FE" },
+    { "name": "パープル", "value": "#E9D5FF" },
+    { "name": "ピンク", "value": "#FBCFE8" }
+]
