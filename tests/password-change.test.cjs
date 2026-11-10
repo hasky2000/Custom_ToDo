@@ -33,8 +33,15 @@ function createScreen() {
                     element('#new-password').value = '';
                     element('#new-password-confirmation').value = '';
                 }
+                if (selector === '#register-form') {
+                    element('#register-password').value = '';
+                    element('#register-password-confirmation').value = '';
+                }
+                for (const callback of listeners.get('reset') ?? []) callback();
             },
-            reportValidity() { return true; },
+            reportValidityCalls: 0,
+            reportValidity() { this.reportValidityCalls++; return true; },
+            focus() { this.focused = true; },
             checkValidity() { return true; },
             setCustomValidity(message) { this.validationMessage = message; },
             async submit() {
@@ -57,6 +64,14 @@ function createScreen() {
         setInterval() {},
         taskSchedule: require('../src/public/assets/task-schedule.js'),
         FormData: class {
+            get(name) {
+                const selectors = {
+                    email: '#register-email',
+                    password: '#register-password',
+                    password_confirmation: '#register-password-confirmation',
+                };
+                return element(selectors[name]).value;
+            }
             *[Symbol.iterator]() {
                 yield ['current_password', element('#current-password').value];
                 yield ['new_password', element('#new-password').value];
@@ -219,10 +234,16 @@ test('確認用パスワードが一致しない場合は送信せず、一致�
     screen.element('#new-password-confirmation').input('different-password');
     await screen.submit();
     assert.equal(screen.requests.length, 0);
-    assert.equal(screen.element('#password-change-message').textContent, '確認用パスワードが一致しません。');
+    assert.equal(screen.element('#password-change-message').textContent, '');
+    assert.equal(screen.element('#new-password-confirmation-error').textContent, '確認用パスワードが一致しません。');
     assert.equal(screen.element('#new-password-confirmation').validationMessage, '確認用パスワードが一致しません。');
+    assert.equal(screen.element('#new-password-confirmation')['aria-invalid'], 'true');
+    assert.equal(screen.element('#new-password-confirmation').reportValidityCalls, 0);
+    assert.equal(screen.element('#new-password-confirmation').focused, true);
     screen.element('#new-password-confirmation').input('new-test-password');
     assert.equal(screen.element('#new-password-confirmation').validationMessage, '');
+    assert.equal(screen.element('#new-password-confirmation-error').textContent, '');
+    assert.equal(screen.element('#new-password-confirmation')['aria-invalid'], 'false');
     const pending = screen.submit();
     screen.respond(true, { data: { password_changed: true } });
     await pending;
@@ -246,4 +267,90 @@ test('元の入力を変更した場合も再照合し、画面を開き直す�
     screen.respond(true, { data: { password_changed: true } });
     await pending;
     assert.equal(screen.requests.length, 1);
+});
+
+test('確認欄を空にしたときは不一致エラーを残さず、必須入力の検証に任せる', async () => {
+    const screen = createScreen();
+    await screen.open('account/password');
+    screen.enterPasswords();
+    screen.element('#new-password-confirmation').input('different-password');
+    await screen.submit();
+    screen.element('#new-password-confirmation').input('');
+    assert.equal(screen.element('#new-password-confirmation').validationMessage, '');
+    assert.equal(screen.element('#password-change-message').textContent, '');
+    assert.equal(screen.element('#new-password-confirmation-error').textContent, '');
+});
+
+test('変更画面で一致するよう修正すると不一致のメッセージも消える', async () => {
+    const screen = createScreen();
+    await screen.open('account/password');
+    screen.enterPasswords();
+    screen.element('#new-password-confirmation').input('different-password');
+    await screen.submit();
+    screen.element('#new-password-confirmation').input('new-test-password');
+    assert.equal(screen.element('#password-change-message').textContent, '');
+    assert.equal(screen.element('#new-password-confirmation-error').textContent, '');
+});
+
+test('登録画面でも一致するよう修正すると不一致のメッセージが消える', async () => {
+    const screen = createScreen();
+    screen.element('#register-password').input('registration-password');
+    screen.element('#register-password-confirmation').input('different-password');
+    await screen.element('#register-form').submit();
+    assert.equal(screen.requests.length, 0);
+    assert.equal(screen.element('#register-password-confirmation-error').textContent, '確認用パスワードが一致しません。');
+    assert.equal(screen.element('#register-password-confirmation').reportValidityCalls, 0);
+    screen.element('#register-password-confirmation').input('registration-password');
+    assert.equal(screen.element('#register-password-confirmation').validationMessage, '');
+    assert.equal(screen.element('#auth-message').textContent, '');
+    assert.equal(screen.element('#register-password-confirmation-error').textContent, '');
+});
+
+test('登録の必須入力や文字数のエラーがある場合、一致していても送信しない', async () => {
+    const screen = createScreen();
+    screen.element('#register-password').input('short');
+    screen.element('#register-password-confirmation').input('short');
+    screen.element('#register-form').reportValidity = () => false;
+    await screen.element('#register-form').submit();
+    assert.equal(screen.requests.length, 0);
+    assert.equal(screen.element('#register-password-confirmation-error').textContent, '');
+});
+
+test('登録の確認欄が未入力なら、不一致のエラーを出さず必須入力を検証する', async () => {
+    const screen = createScreen();
+    screen.element('#register-password').input('registration-password');
+    screen.element('#register-form').reportValidity = () => false;
+    await screen.element('#register-form').submit();
+    assert.equal(screen.requests.length, 0);
+    assert.equal(screen.element('#register-password-confirmation').validationMessage, '');
+    assert.equal(screen.element('#register-password-confirmation-error').textContent, '');
+});
+
+test('登録フォームのリセットで不一致の表示と入力エラー状態を消去する', async () => {
+    const screen = createScreen();
+    screen.element('#register-password').input('registration-password');
+    screen.element('#register-password-confirmation').input('different-password');
+    screen.element('#register-form').reset();
+    assert.equal(screen.element('#register-password-confirmation-error').textContent, '');
+    assert.equal(screen.element('#register-password-confirmation').validationMessage, '');
+    assert.equal(screen.element('#register-password-confirmation')['aria-invalid'], 'false');
+});
+
+test('登録画面で不一致を修正すると一致したパスワードをAPIへ送信できる', async () => {
+    const screen = createScreen();
+    screen.element('#register-email').input('registration@example.invalid');
+    screen.element('#register-password').input('registration-password');
+    screen.element('#register-password-confirmation').input('different-password');
+    await screen.element('#register-form').submit();
+    screen.element('#register-password-confirmation').input('registration-password');
+    const pending = screen.element('#register-form').submit();
+    assert.equal(screen.requests.length, 1);
+    assert.equal(screen.requests[0].url, '/api/register.php');
+    assert.deepEqual(JSON.parse(screen.requests[0].body), {
+        email: 'registration@example.invalid', password: 'registration-password', password_confirmation: 'registration-password',
+    });
+    screen.respond(false, { error: 'このメールアドレスはすでに登録されています。' });
+    await pending;
+    assert.equal(screen.element('#register-password-confirmation-error').textContent, '');
+    assert.equal(screen.element('#auth-message').textContent, 'このメールアドレスはすでに登録されています。');
 });

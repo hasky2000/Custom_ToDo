@@ -104,7 +104,7 @@ $scheduleScriptVersion = filemtime(__DIR__ . '/assets/task-schedule.js');
                 <button type="submit" class="w-full rounded-lg bg-main px-4 py-3 font-semibold text-primary-ink">ログイン</button>
             </form>
 
-            <form id="register-form" class="mt-6 hidden space-y-4 rounded-2xl bg-card p-6 shadow-sm">
+            <form id="register-form" class="mt-6 hidden space-y-4 rounded-2xl bg-card p-6 shadow-sm" novalidate>
                 <div>
                     <label for="register-email" class="block text-sm font-semibold">メールアドレス</label>
                     <input id="register-email" name="email" type="email" autocomplete="email" required
@@ -130,7 +130,7 @@ $scheduleScriptVersion = filemtime(__DIR__ . '/assets/task-schedule.js');
                 <div>
                     <label for="register-password-confirmation" class="block text-sm font-semibold">パスワード（確認）</label>
                     <div class="password-input mt-1">
-                        <input id="register-password-confirmation" name="password_confirmation" type="password" autocomplete="new-password" minlength="8" required
+                        <input id="register-password-confirmation" name="password_confirmation" type="password" autocomplete="new-password" minlength="8" required aria-describedby="register-password-confirmation-error"
                             class="min-w-0 w-full rounded-lg border border-line bg-field px-3 py-3 focus:border-main focus:outline-none focus:ring-2 focus:ring-accent">
                         <button type="button" data-password-toggle="register-password-confirmation" aria-controls="register-password-confirmation" aria-pressed="false" aria-label="パスワードを表示"
                             class="password-visibility-toggle">
@@ -142,6 +142,7 @@ $scheduleScriptVersion = filemtime(__DIR__ . '/assets/task-schedule.js');
                             </svg>
                         </button>
                     </div>
+                    <p id="register-password-confirmation-error" class="password-confirmation-error mt-2 text-sm font-semibold text-ink" role="status"></p>
                 </div>
                 <button type="submit" class="w-full rounded-lg bg-main px-4 py-3 font-semibold text-primary-ink">アカウントを作成</button>
             </form>
@@ -343,7 +344,7 @@ $scheduleScriptVersion = filemtime(__DIR__ . '/assets/task-schedule.js');
             </section>
 
             <section id="password-change-page" class="hidden space-y-6" aria-label="パスワード変更">
-                <form id="password-change-form" class="space-y-5 rounded-2xl border border-line bg-card p-5 shadow-sm">
+                <form id="password-change-form" class="space-y-5 rounded-2xl border border-line bg-card p-5 shadow-sm" novalidate>
                     <div>
                         <label for="current-password" class="block text-sm font-semibold">現在のパスワード</label>
                         <div class="password-input mt-1">
@@ -380,7 +381,7 @@ $scheduleScriptVersion = filemtime(__DIR__ . '/assets/task-schedule.js');
                     <div>
                         <label for="new-password-confirmation" class="block text-sm font-semibold">パスワード（確認）</label>
                         <div class="password-input mt-1">
-                            <input id="new-password-confirmation" name="new_password_confirmation" type="password" required minlength="8" maxlength="72" autocomplete="new-password"
+                            <input id="new-password-confirmation" name="new_password_confirmation" type="password" required minlength="8" maxlength="72" autocomplete="new-password" aria-describedby="new-password-confirmation-error"
                                 class="min-w-0 w-full rounded-lg border border-line bg-field px-3 py-2 focus:border-main focus:outline-none focus:ring-2 focus:ring-accent">
                             <button type="button" data-password-toggle="new-password-confirmation" aria-controls="new-password-confirmation" aria-pressed="false" aria-label="パスワードを表示"
                                 class="password-visibility-toggle">
@@ -392,6 +393,7 @@ $scheduleScriptVersion = filemtime(__DIR__ . '/assets/task-schedule.js');
                                 </svg>
                             </button>
                         </div>
+                        <p id="new-password-confirmation-error" class="password-confirmation-error mt-2 text-sm font-semibold text-ink" role="status"></p>
                     </div>
                     <p id="password-change-message" class="min-h-6 text-sm font-semibold" role="status"></p>
                     <button type="submit" class="w-full rounded-xl bg-main px-4 py-3 text-sm font-semibold text-primary-ink disabled:opacity-50">パスワードを変更する</button>

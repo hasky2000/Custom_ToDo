@@ -25,6 +25,7 @@ const passwordChangeMessage = document.querySelector('#password-change-message')
 const currentPassword = document.querySelector('#current-password');
 const newPassword = document.querySelector('#new-password');
 const newPasswordConfirmation = document.querySelector('#new-password-confirmation');
+const newPasswordConfirmationError = document.querySelector('#new-password-confirmation-error');
 const todoPage = document.querySelector('#todo-page');
 const myPage = document.querySelector('#my-page');
 const pageTitle = document.querySelector('#page-title');
@@ -39,6 +40,7 @@ const archiveDate = document.querySelector('#archive-date');
 const clearArchiveFiltersButton = document.querySelector('#clear-archive-filters');
 const registerPassword = document.querySelector('#register-password');
 const registerPasswordConfirmation = document.querySelector('#register-password-confirmation');
+const registerPasswordConfirmationError = document.querySelector('#register-password-confirmation-error');
 const settingsPage = document.querySelector('#settings-page');
 const settingsDetailPage = document.querySelector('#settings-detail-page');
 const passwordToggleButtons = document.querySelectorAll('[data-password-toggle]');
@@ -1023,13 +1025,30 @@ clearArchiveFiltersButton.addEventListener('click', () => {
     renderCompletedTasks();
 });
 
+function showPasswordConfirmationError(input, errorElement, text) {
+    input.setCustomValidity(text);
+    input.setAttribute('aria-invalid', String(text !== ''));
+    if (errorElement.textContent !== text) errorElement.textContent = text;
+}
+
+function validateMatchingPasswords(password, confirmation, errorElement, formMessage) {
+    // 未入力の案内はrequiredに任せ、両方に入力があるときだけ一致を確認する。
+    const mismatch = password.value !== '' && confirmation.value !== '' && password.value !== confirmation.value;
+    const error = '確認用パスワードが一致しません。';
+    showPasswordConfirmationError(confirmation, errorElement, mismatch ? error : '');
+    // APIなどからフォーム全体へ表示された同じエラーも、入力に合わせて解消する。
+    if (formMessage.textContent === error) formMessage.textContent = '';
+    return !mismatch;
+}
+
 function validatePasswordConfirmation() {
-    const matches = registerPassword.value === registerPasswordConfirmation.value;
-    registerPasswordConfirmation.setCustomValidity(matches ? '' : '確認用パスワードが一致しません。');
-    return matches;
+    return validateMatchingPasswords(registerPassword, registerPasswordConfirmation, registerPasswordConfirmationError, authMessage);
 }
 registerPassword.addEventListener('input', validatePasswordConfirmation);
 registerPasswordConfirmation.addEventListener('input', validatePasswordConfirmation);
+registerForm.addEventListener('reset', () => {
+    showPasswordConfirmationError(registerPasswordConfirmation, registerPasswordConfirmationError, '');
+});
 
 loginForm.addEventListener('submit', async (event) => {
     event.preventDefault();
@@ -1044,10 +1063,10 @@ loginForm.addEventListener('submit', async (event) => {
 registerForm.addEventListener('submit', async (event) => {
     event.preventDefault();
     if (!validatePasswordConfirmation()) {
-        registerPasswordConfirmation.reportValidity();
-        showAuthMessage('確認用パスワードが一致しません。');
+        registerPasswordConfirmation.focus();
         return;
     }
+    if (!registerForm.reportValidity()) return;
 
     try {
         await authenticate('/api/register.php', registerForm);
@@ -1065,9 +1084,7 @@ currentPassword.addEventListener('input', validatePasswordChangeDifference);
 newPassword.addEventListener('input', validatePasswordChangeDifference);
 
 function validatePasswordChangeConfirmation() {
-    const matches = newPassword.value === newPasswordConfirmation.value;
-    newPasswordConfirmation.setCustomValidity(matches ? '' : '確認用パスワードが一致しません。');
-    return matches;
+    return validateMatchingPasswords(newPassword, newPasswordConfirmation, newPasswordConfirmationError, passwordChangeMessage);
 }
 newPassword.addEventListener('input', validatePasswordChangeConfirmation);
 newPasswordConfirmation.addEventListener('input', validatePasswordChangeConfirmation);
@@ -1075,7 +1092,7 @@ newPasswordConfirmation.addEventListener('input', validatePasswordChangeConfirma
 function resetPasswordChangeForm() {
     passwordChangeForm.reset();
     newPassword.setCustomValidity('');
-    newPasswordConfirmation.setCustomValidity('');
+    showPasswordConfirmationError(newPasswordConfirmation, newPasswordConfirmationError, '');
     passwordChangeMessage.textContent = '';
 }
 
@@ -1083,8 +1100,7 @@ passwordChangeForm.addEventListener('submit', async (event) => {
     event.preventDefault();
     if (passwordChangeForm.dataset.submitting === 'true') return;
     if (!validatePasswordChangeConfirmation()) {
-        newPasswordConfirmation.reportValidity();
-        passwordChangeMessage.textContent = '確認用パスワードが一致しません。';
+        newPasswordConfirmation.focus();
         return;
     }
     if (!validatePasswordChangeDifference()) {

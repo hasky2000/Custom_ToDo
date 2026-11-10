@@ -85,6 +85,14 @@
     padding-right: 3.25rem;
 }
 
+.password-confirmation-error {
+    overflow-wrap: anywhere;
+}
+
+.password-confirmation-error:empty {
+    display: none;
+}
+
 .theme-app button.password-visibility-toggle {
     position: absolute;
     top: 0.25rem;
